@@ -3,6 +3,13 @@
   const ROOT = new URL('../../../', document.currentScript.src).href;
 
   const scripts = [
+    // Segurança e Game Hub v2 — precisam existir ANTES de core/main.js,
+    // que consulta window.VessieURLGuard/VessieGameLibrary ao montar a Steam.
+    'JS/kernel/security/url-guard.js',
+    'JS/systems/game-patterns.js',
+    'JS/systems/iframe-doctor.js',
+    'JS/systems/game-library.js',
+    'JS/systems/game-collector-v2.js',
     'JS/core/main.js',
     'JS/core/bootstrap.js',
     'JS/core/storage.js',

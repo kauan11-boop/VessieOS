@@ -62,6 +62,11 @@ class ScriptingManager {
             ...hostAPI,
         };
 
+        // Módulos `games` e `sec`: única ponte entre um script e o Game Hub.
+        // Continuam ausentes se o Game Hub ainda não montou a biblioteca.
+        const gameModules = this._gameModules();
+        if (gameModules) mergedHostAPI.modules = { ...gameModules, ...(hostAPI.modules || {}) };
+
         try {
             const interpreter = await this._engine.run(source, mergedHostAPI);
             if (id) this._loadedScripts.set(id, { source, interpreter });
@@ -86,6 +91,26 @@ class ScriptingManager {
             throw new Error(`[ScriptingManager] Arquivo não encontrado: ${path}`);
         }
         return this.run(source, { id: path, hostAPI });
+    }
+
+    /** Monta `games`/`sec` sobre a biblioteca real do Game Hub, se existir. */
+    _gameModules() {
+        const library = window.vessieGameLibrary?.();
+        if (!library || !window.VessieGameAPI) return null;
+        try {
+            const collector = window.VessieCollector && window.VessieGamePatterns
+                ? new window.VessieCollector.VessieCollector({ guard: window.VessieURLGuard, patterns: window.VessieGamePatterns })
+                : null;
+            return window.VessieGameAPI.createHostAPI({
+                library,
+                collector,
+                guard: window.VessieURLGuard,
+                doctor: window.VessieIframeDoctor,
+            }).modules;
+        } catch (error) {
+            console.warn('[ScriptingManager] módulos de jogos indisponíveis:', error.message);
+            return null;
+        }
     }
 
     getLoadedScript(id) { return this._loadedScripts.get(id) || null; }
