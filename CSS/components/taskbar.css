@@ -1,0 +1,93 @@
+#tb {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--th);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: rgba(15, 18, 26, 0.66);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  z-index: 1200;
+}
+
+.tb-l,
+.tb-c,
+.tb-r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tbtn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.tb-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--dim);
+  font-size: 0.82rem;
+}
+
+.tb-wins {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tb-win {
+  height: 34px;
+  min-width: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.tb-win.active {
+  background: rgba(96, 165, 250, 0.14);
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.tb-sys {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-2);
+  font-size: 0.8rem;
+}
+
+.tb-clk {
+  min-width: 88px;
+  text-align: center;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.tb-clk .t {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.tb-clk .d {
+  font-size: 0.66rem;
+  color: var(--dim);
+}

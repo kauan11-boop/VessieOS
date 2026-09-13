@@ -1,0 +1,131 @@
+#terms {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 8, 14, 0.72);
+  backdrop-filter: blur(36px) saturate(1.4);
+  -webkit-backdrop-filter: blur(36px) saturate(1.4);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+}
+
+.tc {
+  max-width: 500px;
+  width: 92%;
+  background: var(--acrylic-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  padding: 36px 40px;
+  box-shadow: var(--shadow-win);
+  text-align: center;
+  animation: fu 0.35s var(--ease);
+  color: var(--text);
+  position: relative;
+  overflow: hidden;
+}
+
+.tc::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--a), var(--a2), transparent);
+}
+
+.tc h2 {
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 6px 0 14px;
+  letter-spacing: -0.015em;
+}
+
+.tc ul {
+  text-align: left;
+  margin: 14px 0;
+  color: var(--text-2);
+  line-height: 1.75;
+  padding-left: 20px;
+  font-size: 0.88rem;
+}
+
+.tc ul li {
+  margin-bottom: 6px;
+}
+
+.tc ul li::marker {
+  color: var(--a);
+}
+
+.btn-p {
+  background: linear-gradient(180deg, var(--a), #3b82f6);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: white;
+  border-radius: 999px;
+  padding: 12px 20px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(96, 165, 250, 0.35);
+}
+
+#login {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 13, 20, 0.68);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 8000;
+}
+
+.lc {
+  width: min(420px, 90vw);
+  padding: 28px 24px 24px;
+  border-radius: 24px;
+  background: rgba(11, 15, 22, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow-win);
+  text-align: center;
+}
+
+.l-av {
+  font-size: 4rem;
+  margin-bottom: 12px;
+}
+
+.l-inp {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  padding: 14px 16px;
+  border-radius: 12px;
+  margin-top: 10px;
+}
+
+.l-err-box {
+  display: none;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 73, 113, 0.08);
+  border: 1px solid rgba(255, 73, 113, 0.2);
+  color: #ffb3c5;
+  text-align: left;
+}
+
+.l-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--a), var(--a2));
+  color: #fff;
+  font-weight: 700;
+}

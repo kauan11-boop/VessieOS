@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>VessieOS · Windows 11 Ultra</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="./CSS/systems/desktop/main.css">
+  <!-- Three.js: motor gráfico usado por Vessie3DProEngine, pelos jogos com renderização 3D
+       e pelo novo fundo do Game Hub. Antes desta correção, NENHUM HTML do projeto carregava
+       o Three.js — os motores gráficos existentes dependiam de `window.THREE`, que nunca
+       existia, e por isso nunca chegavam a renderizar nada. -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+</head>
+
+<body>
+
+  <!-- BOOT SCREEN -->
+  <div id="boot" class="boot-screen" role="status" aria-busy="true" aria-label="Inicializando o sistema">
+    <h1 class="boot-logo">VessieOS</h1>
+    <p class="boot-sub">VessieOS Version 1.0.3 <span aria-hidden="true">*</span></p>
+    <div class="boot-spin" aria-hidden="true"></div>
+    <span class="sr-only">Carregando sistema operacional, por favor aguarde.</span>
+  </div>
+
+  <!-- TERMS & CONDITIONS -->
+  <section id="terms" class="terms-container is-hidden" role="dialog" aria-modal="false" aria-labelledby="terms-title">
+    <div class="tc terms-card">
+
+      <header class="terms-header">
+        <div class="terms-logo" aria-hidden="true">💜</div>
+        <h2 id="terms-title" class="terms-title">Bem-vinda ao VessieOS!</h2>
+        <p class="terms-subtitle">Por favor, leia os termos antes de continuar</p>
+      </header>
+
+      <main class="terms-content">
+        <ul class="terms-list">
+          <li>Este é um projeto feito com uma coca-cola e uma coxinha.</li>
+          <li>Seus dados <strong>não são salvos</strong> em servidores externos.</li>
+          <li>Detectamos uma atividade suspeita no nosso sistema. Por favor, não fique tentando adivinhar o código, tá
+            bom? Só não mexe, entendeu? Existem coisas nesse sistema que não devem ser descobertas, entende né?</li>
+          <li>Seja bem-vinda, é sério, não tente. Esse foi o meu último aviso. Pode continuar. <br><strong>Ass:
+              Vessie.</strong></li>
+        </ul>
+      </main>
+
+      <footer class="terms-footer">
+        <button class="btn-p" id="btn-accept" type="button" aria-label="Concordar com os termos e entrar no sistema">
+          <span>Concordo e entrar</span>
+          <i class="terms-sparkle" aria-hidden="true">✨</i>
+        </button>
+      </footer>
+
+    </div>
+  </section>
+
+  <!-- LOGIN -->
+  <div id="login" style="display:none">
+    <div class="lc">
+      <div class="l-av">💜</div>
+      <h2>VessieOS</h2>
+      <p>Entre com seu nome de usuário</p>
+      <input class="l-inp" id="l-name" placeholder="Seu nome..." value="Visitante" maxlength="20">
+      <input class="l-inp" id="l-pass" type="password" placeholder="Senha..." autocomplete="off">
+      <div class="l-err-box" id="l-err-box">
+        <div class="l-err-title">Senha incorreta</div>
+        <div class="l-err-sub">você não merece isso</div>
+      </div>
+      <button class="l-btn" id="l-btn">Entrar no Sistema →</button>
+    </div>
+  </div>
+
+  <!-- DESKTOP -->
+  <div id="desktop" style="display:none">
+    <div id="desktop-media-bg"></div>
+    <div id="icons-area" style="position:absolute;inset:0;pointer-events:none"></div>
+    <div id="ctx" style="display:none">
+      <div class="cti" data-act="refresh"><i class="fas fa-sync-alt"></i> Atualizar Desktop</div>
+      <div class="cti" data-act="newFolder"><i class="fas fa-folder-plus"></i> Nova Pasta</div>
+      <div class="cti" data-act="personalize"><i class="fas fa-paint-brush"></i> Personalizar</div>
+      <div class="cts"></div>
+      <div class="cti" data-act="terminal"><i class="fas fa-terminal"></i> Abrir Terminal</div>
+      <div class="cti" data-act="taskManager"><i class="fas fa-tasks"></i> Gerenciador de Tarefas</div>
+      <div class="cts"></div>
+      <div class="cti" data-act="about"><i class="fas fa-info-circle"></i> Sobre o VessieOS</div>
+    </div>
+  </div>
+
+  <!-- TASKBAR -->
+  <div id="tb" style="display:none">
+    <div class="tb-l">
+      <button class="tbtn" id="tb-start" title="Iniciar">
+        <i class="fab fa-windows"
+          style="background:linear-gradient(135deg,var(--a),var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 6px rgba(196,111,255,.7))"></i>
+      </button>
+      <div class="tb-search" id="tb-search"><i class="fas fa-search" style="font-size:.85rem"></i> Pesquisar...</div>
+    </div>
+    <div class="tb-c" id="tb-wins"></div>
+    <div class="tb-r">
+      <div class="tb-sys">
+        <i class="fas fa-wifi" title="Wi-Fi"></i>
+        <i class="fas fa-volume-up" title="Volume" id="vol-icon"></i>
+        <i class="fas fa-battery-three-quarters" title="Bateria"></i>
+      </div>
+      <div class="tb-clk">
+        <div class="t" id="tb-time"></div>
+        <div class="d" id="tb-date"></div>
+      </div>
+      <button class="tbtn" id="tb-notif" title="Notificações" style="font-size:1rem"><i
+          class="fas fa-bell"></i></button>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION PANEL -->
+  <div id="np">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h3 style="font-size:1.1rem">Central de Notificações</h3>
+      <button id="np-close" style="background:none;border:none;color:var(--dim);font-size:1.1rem;cursor:pointer"><i
+          class="fas fa-times"></i></button>
+    </div>
+    <div class="qt-grid">
+      <div class="qt on" data-qt="wifi"><i class="fas fa-wifi"></i>Wi-Fi</div>
+      <div class="qt on" data-qt="bt"><i class="fab fa-bluetooth-b"></i>Bluetooth</div>
+      <div class="qt" data-qt="dnd"><i class="fas fa-moon"></i>Não Perturbe</div>
+      <div class="qt" data-qt="dark"><i class="fas fa-adjust"></i>Tema</div>
+      <div class="qt on" data-qt="vol"><i class="fas fa-volume-up"></i>Som</div>
+      <div class="qt" data-qt="focus"><i class="fas fa-crosshairs"></i>Foco</div>
+      <div class="qt" data-qt="nightlight"><i class="fas fa-sun"></i>Luz Noturna</div>
+      <div class="qt" data-qt="airplane"><i class="fas fa-plane"></i>Avião</div>
+    </div>
+    <div style="margin-top:22px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:.85rem;font-weight:600">Notificações</span>
+        <button id="clr-notifs"
+          style="background:none;border:none;color:var(--dim);font-size:.78rem;cursor:pointer">Limpar todas</button>
+      </div>
+      <div id="notif-list">
+        <div class="n-item">
+          <div class="n-title">💜 Bem-vindo ao VessieOS!</div>
+          <div class="n-body">Sistema iniciado com sucesso. Clique no ícone da Vessie para começar.</div>
+        </div>
+        <div class="n-item info">
+          <div class="n-title">🎮 Jogos disponíveis</div>
+          <div class="n-body">Jogos desbloqueados. Abra o Game Hub para jogar!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- START MENU -->
+  <div id="sm">
+    <div class="sm-srch">
+      <i class="fas fa-search" style="color:var(--dim)"></i>
+      <input id="sm-q" placeholder="Pesquisar apps, configurações...">
+    </div>
+    <div class="sm-ttl">Apps Fixados</div>
+    <div class="sm-grid" id="sm-grid"></div>
+    <div class="sm-ttl" style="margin-top:14px">Recentes</div>
+    <div id="sm-recent"
+      style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-size:.82rem;color:var(--dim)">
+      <span>Nenhum app recente</span>
+    </div>
+    <div class="sm-ft">
+      <div class="sm-usr">
+        <div class="sm-uav">💜</div>
+        <span id="sm-uname">Visitante</span>
+      </div>
+      <button class="sm-pw" id="sm-power"><i class="fas fa-power-off"></i> Desligar</button>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <aside id="toasts" class="toast-container" role="region" aria-label="Notificações do sistema" aria-live="polite"
+    aria-atomic="true"></aside>
+
+  <!-- EASTER EGG -->
+  <div id="eg"> <img src="https://media1.tenor.com/m/wRwerbndgV8AAAAC/micheal.gif" alt="🎉">
+  </div>
+  <script src="./JS/systems/desktop/main.js"></script>
+  <!-- Motor VessieScript (linguagem própria do ecossistema, ver assets/vessiescript/SPEC.md)
+       + extensões (comandos reais), adaptador de kernel real e adaptador de C#.
+       Precisam ser <script> clássicos carregados ANTES do pipeline de módulos ES
+       abaixo, para que window.VessieScript já exista quando o ScriptingManager
+       inicializar (ver NEW-MODULES.md § ScriptingManager). -->
+  <script src="./JS/kernel/modules/scripting/lib/vessiescript.js"></script>
+  <script src="./JS/kernel/modules/scripting/lib/kernel-adapter.js"></script>
+  <script src="./JS/kernel/modules/scripting/lib/vessiescript-extensions.js"></script>
+  <script src="./JS/kernel/modules/scripting/lib/csharp-adapter.js"></script>
+  <!-- Pipeline de módulos ES (PerformanceManager, RenderManager, MotionBlurEngine,
+       GraphicsHub/GameHubRenderer, SystemsRuntime com os 155 sistemas, etc.).
+       Precisa de type="module" por causa dos import/export internos — por isso
+       roda em uma tag separada da cadeia clássica de scripts acima. Falhas aqui
+       não travam o boot: cada módulo tem espera defensiva pelo kernel. -->
+  <script type="module" src="./JS/kernel/modules/index.js"></script>
+  <script src="./JS/kernel/autohealer.js"></script>
+</body>
+
+</html>

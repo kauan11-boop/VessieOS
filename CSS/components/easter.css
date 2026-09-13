@@ -1,0 +1,30 @@
+#eg {
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 9999;
+}
+
+#eg.horror {
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at center, #000 0%, #040404 40%, #000 100%);
+  color: #fff;
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.35);
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+#eg.horror .horror-title {
+  font-size: 2.15rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+#eg.horror .horror-sub {
+  font-size: 1rem;
+  color: #ff6b6b;
+  margin-top: 8px;
+}
