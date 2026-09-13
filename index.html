@@ -187,6 +187,9 @@
   <script src="./JS/kernel/modules/scripting/lib/kernel-adapter.js"></script>
   <script src="./JS/kernel/modules/scripting/lib/vessiescript-extensions.js"></script>
   <script src="./JS/kernel/modules/scripting/lib/csharp-adapter.js"></script>
+  <!-- Ponte controlada entre VessieScript e o Game Hub: expõe os módulos
+       `games` e `sec` (nunca window/document/fetch/eval) ao script do usuário. -->
+  <script src="./JS/kernel/modules/scripting/lib/vessie-game-api.js"></script>
   <!-- Pipeline de módulos ES (PerformanceManager, RenderManager, MotionBlurEngine,
        GraphicsHub/GameHubRenderer, SystemsRuntime com os 155 sistemas, etc.).
        Precisa de type="module" por causa dos import/export internos — por isso

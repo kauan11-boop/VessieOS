@@ -5,6 +5,16 @@
  * Implementação de referência: Lexer -> Parser (AST) -> Interpretador (tree-walking, async).
  * Extensão de arquivo: .vessie
  *
+ * v2 (ver docs/VESSIESCRIPT-V2.md):
+ *   - strings de template com interpolação:  `Olá ${nome}`
+ *   - try / catch / finally / throw
+ *   - match com arms  valor => expressão  e  _ => padrão
+ *   - funções seta:  (a, b) => a + b
+ *   - parâmetros com valor padrão:  func f(a, b = 2) { }
+ *   - ?? (nullish), ?. (acesso opcional), ** (potência), |> (pipeline)
+ *   - biblioteca padrão: text, list, math, json, time
+ *   - APIs do VessieOS injetadas pelo host: games, sec (ver vessie-game-api.js)
+ *
  * Uso em Node:
  *   const { VessieScript } = require('./vessiescript.js');
  *   await VessieScript.run(source, { print: console.log });
@@ -39,10 +49,11 @@
     'while', 'for', 'in', 'return', 'break', 'continue', 'true', 'false',
     'null', 'new', 'this', 'super', 'override', 'async', 'await', 'event',
     'entity', 'plugin',
+    'try', 'catch', 'finally', 'throw', 'match',
   ]);
 
   const TT = {
-    NUMBER: 'NUMBER', STRING: 'STRING', IDENT: 'IDENT', KEYWORD: 'KEYWORD',
+    NUMBER: 'NUMBER', STRING: 'STRING', TEMPLATE: 'TEMPLATE', IDENT: 'IDENT', KEYWORD: 'KEYWORD',
     PUNCT: 'PUNCT', DECORATOR: 'DECORATOR', EOF: 'EOF',
   };
 
@@ -86,7 +97,8 @@
     isAlphaNum(ch) { return !!ch && /[A-Za-z0-9_]/.test(ch); }
 
     tokenize() {
-      const TWO_OPS = ['==', '!=', '<=', '>=', '&&', '||', '+=', '-=', '*=', '/='];
+      const THREE_OPS = ['**='];
+      const TWO_OPS = ['==', '!=', '<=', '>=', '&&', '||', '+=', '-=', '*=', '/=', '=>', '??', '?.', '|>', '**'];
       while (this.pos < this.src.length) {
         const ch = this.peekChar();
 
@@ -124,6 +136,11 @@
           continue;
         }
 
+        if (ch === '`') {
+          this.tokens.push(Object.assign(this.readTemplate(), { line: startLine, col: startCol }));
+          continue;
+        }
+
         if (this.isDigit(ch)) {
           let num = '';
           while (this.isDigit(this.peekChar())) num += this.advance();
@@ -151,13 +168,19 @@
           continue;
         }
 
+        const three = this.src.substr(this.pos, 3);
+        if (THREE_OPS.includes(three)) {
+          this.pos += 3; this.col += 3;
+          this.tokens.push({ type: TT.PUNCT, value: three, line: startLine, col: startCol });
+          continue;
+        }
         const two = this.src.substr(this.pos, 2);
         if (TWO_OPS.includes(two)) {
           this.pos += 2; this.col += 2;
           this.tokens.push({ type: TT.PUNCT, value: two, line: startLine, col: startCol });
           continue;
         }
-        const SINGLE = '{}()[],.;:=+-*/%<>!';
+        const SINGLE = '{}()[],.;:=+-*/%<>!?|';
         if (SINGLE.includes(ch)) {
           this.advance();
           this.tokens.push({ type: TT.PUNCT, value: ch, line: startLine, col: startCol });
@@ -168,6 +191,48 @@
       }
       this.tokens.push({ type: TT.EOF, value: null, line: this.line, col: this.col });
       return this.tokens;
+    }
+
+    /**
+     * Template string: `texto ${expressao} texto`.
+     * Guarda os trechos literais (quasis) e o código-fonte cru de cada
+     * interpolação; o parser compila cada trecho separadamente.
+     */
+    readTemplate() {
+      this.advance(); // `
+      const quasis = [];
+      const exprs = [];
+      let current = '';
+      while (this.pos < this.src.length && this.peekChar() !== '`') {
+        if (this.peekChar() === '\\') {
+          this.advance();
+          const esc = this.advance();
+          const map = { n: '\n', t: '\t', r: '\r', '`': '`', '$': '$', '\\': '\\' };
+          current += map[esc] !== undefined ? map[esc] : esc;
+          continue;
+        }
+        if (this.peekChar() === '$' && this.peekChar(1) === '{') {
+          this.advance(); this.advance();
+          let depth = 1;
+          let code = '';
+          while (this.pos < this.src.length && depth > 0) {
+            const c = this.peekChar();
+            if (c === '{') depth++;
+            if (c === '}') { depth--; if (depth === 0) { this.advance(); break; } }
+            code += this.advance();
+          }
+          if (depth > 0) this.error('Interpolação de template não terminada');
+          quasis.push(current);
+          current = '';
+          exprs.push(code);
+          continue;
+        }
+        current += this.advance();
+      }
+      if (this.pos >= this.src.length) this.error('Template string não terminada');
+      this.advance(); // `
+      quasis.push(current);
+      return { type: TT.TEMPLATE, value: { quasis, exprs } };
     }
   }
 
@@ -242,6 +307,8 @@
       if (this.checkKw('while')) return this.parseWhile();
       if (this.checkKw('for')) return this.parseFor();
       if (this.checkKw('return')) return this.parseReturn();
+      if (this.checkKw('try')) return this.parseTry();
+      if (this.checkKw('throw')) return this.parseThrow();
       if (this.matchKw('break')) { this.matchPunct(';'); return { type: 'BreakStmt' }; }
       if (this.matchKw('continue')) { this.matchPunct(';'); return { type: 'ContinueStmt' }; }
       if (this.checkPunct('{')) return this.parseBlock();
@@ -278,14 +345,49 @@
       return { type: 'VarDecl', name, isConst, init, decorators };
     }
 
+    /**
+     * Parâmetros podem ter valor padrão: func f(a, b = 2).
+     * `params` continua sendo uma lista de nomes (formato v1, consumido pelo
+     * transpilador C#); os padrões vão em `defaults`, alinhados por índice.
+     */
     parseParams() {
       this.expectPunct('(');
       const params = [];
+      const defaults = [];
       if (!this.checkPunct(')')) {
-        do { params.push(this.expectIdent().value); } while (this.matchPunct(','));
+        do {
+          params.push(this.expectIdent().value);
+          defaults.push(this.matchPunct('=') ? this.parseExpr() : null);
+        } while (this.matchPunct(','));
       }
       this.expectPunct(')');
+      params.defaults = defaults;
       return params;
+    }
+
+    parseTry() {
+      this.expectKw('try');
+      const block = this.parseBlock();
+      let param = null;
+      let handler = null;
+      let finalizer = null;
+      if (this.matchKw('catch')) {
+        if (this.matchPunct('(')) { param = this.expectIdent().value; this.expectPunct(')'); }
+        handler = this.parseBlock();
+      }
+      if (this.matchKw('finally')) finalizer = this.parseBlock();
+      if (!handler && !finalizer) {
+        const t = this.peek();
+        throw new VessieSyntaxError("'try' exige 'catch' ou 'finally'", t.line, t.col);
+      }
+      return { type: 'TryStmt', block, param, handler, finalizer };
+    }
+
+    parseThrow() {
+      this.expectKw('throw');
+      const value = this.parseExpr();
+      this.matchPunct(';');
+      return { type: 'ThrowStmt', value };
     }
 
     parseFuncDecl(decorators) {
@@ -294,7 +396,7 @@
       const name = this.expectIdent().value;
       const params = this.parseParams();
       const body = this.parseBlock();
-      return { type: 'FuncDecl', name, params, body, isAsync, decorators };
+      return { type: 'FuncDecl', name, params, defaults: params.defaults, body, isAsync, decorators };
     }
 
     parseClass(decorators) {
@@ -315,7 +417,7 @@
           const mName = this.expectIdent().value;
           const params = this.parseParams();
           const body = this.parseBlock();
-          members.push({ type: 'MethodDecl', name: mName, params, body, isAsync, isOverride, decorators: memberDecorators });
+          members.push({ type: 'MethodDecl', name: mName, params, defaults: params.defaults, body, isAsync, isOverride, decorators: memberDecorators });
         }
       }
       this.expectPunct('}');
@@ -337,7 +439,7 @@
           const mName = this.expectIdent().value;
           const params = this.parseParams();
           const body = this.parseBlock();
-          members.push({ type: 'MethodDecl', name: mName, params, body, isAsync, isOverride: false, decorators: memberDecorators });
+          members.push({ type: 'MethodDecl', name: mName, params, defaults: params.defaults, body, isAsync, isOverride: false, decorators: memberDecorators });
         }
       }
       this.expectPunct('}');
@@ -455,11 +557,79 @@
     parseExpr() { return this.parseAssignment(); }
 
     parseAssignment() {
-      const expr = this.parseLogicOr();
-      if (this.checkPunct('=') || this.checkPunct('+=') || this.checkPunct('-=') || this.checkPunct('*=') || this.checkPunct('/=')) {
+      const arrow = this.tryParseArrow();
+      if (arrow) return arrow;
+      const expr = this.parsePipeline();
+      if (this.checkPunct('=') || this.checkPunct('+=') || this.checkPunct('-=') || this.checkPunct('*=') || this.checkPunct('/=') || this.checkPunct('**=')) {
         const operator = this.advance().value;
         const value = this.parseAssignment();
         return { type: 'AssignExpr', operator, target: expr, value };
+      }
+      return expr;
+    }
+
+    /**
+     * Função seta: `x => x * 2` ou `(a, b) => { return a + b; }`.
+     * Precisa de lookahead porque `(a, b)` também é início de expressão
+     * entre parênteses.
+     */
+    tryParseArrow() {
+      const start = this.pos;
+      if (this.check(TT.IDENT) && this.peek(1).type === TT.PUNCT && this.peek(1).value === '=>') {
+        const params = [this.advance().value];
+        params.defaults = [null];
+        this.advance();
+        return this.finishArrow(params);
+      }
+      if (!this.checkPunct('(')) return null;
+      let depth = 0;
+      let i = this.pos;
+      for (; i < this.tokens.length; i++) {
+        const token = this.tokens[i];
+        if (token.type !== TT.PUNCT) continue;
+        if (token.value === '(') depth++;
+        else if (token.value === ')') { depth--; if (depth === 0) break; }
+      }
+      const after = this.tokens[i + 1];
+      if (!after || after.type !== TT.PUNCT || after.value !== '=>') { this.pos = start; return null; }
+      const params = this.parseParams();
+      this.expectPunct('=>');
+      return this.finishArrow(params);
+    }
+
+    finishArrow(params) {
+      if (this.checkPunct('{')) {
+        const body = this.parseBlock();
+        return { type: 'FuncExpr', params, defaults: params.defaults, body, isAsync: false };
+      }
+      const expr = this.parseExpr();
+      return {
+        type: 'FuncExpr',
+        params,
+        defaults: params.defaults,
+        body: { type: 'Block', body: [{ type: 'ReturnStmt', value: expr }] },
+        isAsync: false
+      };
+    }
+
+    /** `valor |> funcao |> outra` vira `outra(funcao(valor))`. */
+    parsePipeline() {
+      let expr = this.parseNullish();
+      while (this.checkPunct('|>')) {
+        this.advance();
+        const callee = this.parseNullish();
+        expr = callee.type === 'CallExpr'
+          ? { type: 'CallExpr', callee: callee.callee, args: [expr, ...callee.args] }
+          : { type: 'CallExpr', callee, args: [expr] };
+      }
+      return expr;
+    }
+
+    parseNullish() {
+      let expr = this.parseLogicOr();
+      while (this.checkPunct('??')) {
+        this.advance();
+        expr = { type: 'NullishExpr', left: expr, right: this.parseLogicOr() };
       }
       return expr;
     }
@@ -510,12 +680,22 @@
     }
 
     parseMultiplication() {
-      let expr = this.parseUnary();
+      let expr = this.parsePower();
       while (this.checkPunct('*') || this.checkPunct('/') || this.checkPunct('%')) {
         const operator = this.advance().value;
-        expr = { type: 'BinaryExpr', operator, left: expr, right: this.parseUnary() };
+        expr = { type: 'BinaryExpr', operator, left: expr, right: this.parsePower() };
       }
       return expr;
+    }
+
+    /** `**` associa à direita: 2 ** 3 ** 2 == 512. */
+    parsePower() {
+      const base = this.parseUnary();
+      if (this.checkPunct('**')) {
+        this.advance();
+        return { type: 'BinaryExpr', operator: '**', left: base, right: this.parsePower() };
+      }
+      return base;
     }
 
     parseUnary() {
@@ -533,6 +713,18 @@
         if (this.matchPunct('.')) {
           const prop = this.expectIdent().value;
           expr = { type: 'MemberExpr', object: expr, property: prop, computed: false };
+        } else if (this.matchPunct('?.')) {
+          if (this.matchPunct('(')) {
+            const args = [];
+            if (!this.checkPunct(')')) {
+              do { args.push(this.parseExpr()); } while (this.matchPunct(','));
+            }
+            this.expectPunct(')');
+            expr = { type: 'CallExpr', callee: expr, args, optional: true };
+          } else {
+            const prop = this.expectIdent().value;
+            expr = { type: 'MemberExpr', object: expr, property: prop, computed: false, optional: true };
+          }
         } else if (this.matchPunct('(')) {
           const args = [];
           if (!this.checkPunct(')')) {
@@ -554,6 +746,15 @@
 
       if (t.type === TT.NUMBER) { this.advance(); return { type: 'NumberLit', value: t.value }; }
       if (t.type === TT.STRING) { this.advance(); return { type: 'StringLit', value: t.value }; }
+      if (t.type === TT.TEMPLATE) {
+        this.advance();
+        return {
+          type: 'TemplateLit',
+          quasis: t.value.quasis,
+          exprs: t.value.exprs.map((code) => parseExpressionSource(code, t.line))
+        };
+      }
+      if (this.checkKw('match')) return this.parseMatch();
       if (this.matchKw('true')) return { type: 'BoolLit', value: true };
       if (this.matchKw('false')) return { type: 'BoolLit', value: false };
       if (this.matchKw('null')) return { type: 'NullLit' };
@@ -576,7 +777,7 @@
         this.expectKw('func');
         const params = this.parseParams();
         const body = this.parseBlock();
-        return { type: 'FuncExpr', params, body, isAsync };
+        return { type: 'FuncExpr', params, defaults: params.defaults, body, isAsync };
       }
 
       if (this.matchPunct('[')) {
@@ -614,6 +815,42 @@
 
       throw new VessieSyntaxError(`Token inesperado '${t.value}'`, t.line, t.col);
     }
+
+    /**
+     * match (valor) {
+     *   "a" => "primeiro",
+     *   2   => "segundo",
+     *   _   => "outro"
+     * }
+     */
+    parseMatch() {
+      this.expectKw('match');
+      this.expectPunct('(');
+      const subject = this.parseExpr();
+      this.expectPunct(')');
+      this.expectPunct('{');
+      const arms = [];
+      while (!this.checkPunct('}') && !this.atEnd()) {
+        let test = null;
+        if (this.check(TT.IDENT, '_')) this.advance();
+        else test = this.parseExpr();
+        this.expectPunct('=>');
+        const body = this.checkPunct('{') ? this.parseBlock() : this.parseExpr();
+        arms.push({ test, body });
+        this.matchPunct(',');
+      }
+      this.expectPunct('}');
+      return { type: 'MatchExpr', subject, arms };
+    }
+  }
+
+  /** Compila o código cru de uma interpolação `${...}` em uma expressão. */
+  function parseExpressionSource(code, line) {
+    const tokens = new Lexer(code).tokenize();
+    const parser = new Parser(tokens);
+    const expr = parser.parseExpr();
+    if (!parser.atEnd()) throw new VessieSyntaxError('Interpolação de template inválida', line || 0, 0);
+    return expr;
   }
 
   function parse(source) {
@@ -670,6 +907,14 @@
       if (this.vars.has(name)) { this.vars.set(name, value); return; }
       if (this.parent) { this.parent.set(name, value); return; }
       throw new VessieRuntimeError(`Atribuição a variável não definida: '${name}'`);
+    }
+  }
+
+  /** Valor lançado por `throw`, capturado por `catch`. */
+  class VessieThrow extends Error {
+    constructor(value) {
+      super('[VessieScript] throw');
+      this.value = value;
     }
   }
 
@@ -753,6 +998,149 @@
       this.globals.define('getDecorators', native(async (args) => this.decoratorsIndex[args[0]] || []));
       this.globals.define('entities', { __get__: () => this.entities });
       this.globals.define('plugins', { __get__: () => this.plugins });
+      this.installStdlib(native);
+      this.installHostModules(native);
+    }
+
+    /**
+     * Biblioteca padrão v2. São namespaces de dados puros — nada aqui toca
+     * DOM, rede ou disco; qualquer efeito colateral chega pelo hostAPI.
+     */
+    installStdlib(native) {
+      const S = (v) => this.stringify(v);
+      const ns = (entries) => {
+        const obj = {};
+        for (const [name, fn] of Object.entries(entries)) obj[name] = native(async (args) => fn(...args));
+        return obj;
+      };
+
+      this.globals.define('text', ns({
+        upper: (s) => S(s).toUpperCase(),
+        lower: (s) => S(s).toLowerCase(),
+        trim: (s) => S(s).trim(),
+        split: (s, sep) => S(s).split(S(sep)),
+        join: (list, sep = '') => (list || []).map(S).join(S(sep)),
+        replace: (s, from, to) => S(s).split(S(from)).join(S(to)),
+        contains: (s, part) => S(s).includes(S(part)),
+        startsWith: (s, part) => S(s).startsWith(S(part)),
+        endsWith: (s, part) => S(s).endsWith(S(part)),
+        slice: (s, a, b) => S(s).slice(a, b === null || b === undefined ? undefined : b),
+        pad: (s, size, ch = ' ') => S(s).padStart(Number(size) || 0, S(ch)),
+        slug: (s) => S(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      }));
+
+      this.globals.define('list', ns({
+        map: async (l, fn) => {
+          const out = [];
+          for (const item of l || []) out.push(await this.callFunction(fn, [item]));
+          return out;
+        },
+        filter: async (l, fn) => {
+          const out = [];
+          for (const item of l || []) if (truthy(await this.callFunction(fn, [item]))) out.push(item);
+          return out;
+        },
+        reduce: async (l, fn, seed = null) => {
+          let acc = seed;
+          for (const item of l || []) acc = await this.callFunction(fn, [acc, item]);
+          return acc;
+        },
+        each: async (l, fn) => {
+          for (const item of l || []) await this.callFunction(fn, [item]);
+          return null;
+        },
+        find: async (l, fn) => {
+          for (const item of l || []) if (truthy(await this.callFunction(fn, [item]))) return item;
+          return null;
+        },
+        sortBy: async (l, fn) => {
+          const keyed = [];
+          for (const item of l || []) keyed.push({ item, key: await this.callFunction(fn, [item]) });
+          keyed.sort((a, b) => (a.key > b.key ? 1 : a.key < b.key ? -1 : 0));
+          return keyed.map((k) => k.item);
+        },
+        first: (l) => (l && l.length ? l[0] : null),
+        last: (l) => (l && l.length ? l[l.length - 1] : null),
+        sorted: (l) => (l || []).slice().sort((a, b) => (a > b ? 1 : a < b ? -1 : 0)),
+        reversed: (l) => (l || []).slice().reverse(),
+        unique: (l) => Array.from(new Set(l || [])),
+        contains: (l, v) => (l || []).some((item) => deepEqual(item, v)),
+        concat: (a, b) => (a || []).concat(b || []),
+        slice: (l, a, b) => (l || []).slice(a, b === null || b === undefined ? undefined : b),
+        remove: (l, v) => (l || []).filter((item) => !deepEqual(item, v)),
+        count: (l) => (l || []).length
+      }));
+
+      this.globals.define('math', ns({
+        abs: (n) => Math.abs(Number(n)),
+        min: (...n) => Math.min(...n.map(Number)),
+        max: (...n) => Math.max(...n.map(Number)),
+        round: (n, digits = 0) => Number(Number(n).toFixed(Number(digits) || 0)),
+        ceil: (n) => Math.ceil(Number(n)),
+        floor: (n) => Math.floor(Number(n)),
+        sqrt: (n) => Math.sqrt(Number(n)),
+        pow: (n, e) => Math.pow(Number(n), Number(e)),
+        clamp: (n, lo, hi) => Math.min(Math.max(Number(n), Number(lo)), Number(hi)),
+        sum: (l) => (l || []).reduce((acc, n) => acc + Number(n), 0)
+      }));
+
+      this.globals.define('json', ns({
+        encode: (v) => JSON.stringify(this.toPlain(v)),
+        decode: (s) => this.fromPlain(JSON.parse(S(s)))
+      }));
+
+      this.globals.define('time', ns({
+        now: () => Date.now(),
+        iso: (ms) => new Date(Number(ms) || Date.now()).toISOString(),
+        since: (ms) => Date.now() - (Number(ms) || 0)
+      }));
+    }
+
+    /**
+     * Módulos vindos do host (`games`, `sec`, ...). São objetos comuns com
+     * funções JS; cada uma é embrulhada como nativa para o interpretador.
+     * É o único caminho pelo qual um script alcança o VessieOS — não há
+     * acesso a `window`, `document` ou `eval`.
+     */
+    installHostModules(native) {
+      const modules = this.hostAPI.modules || {};
+      for (const [moduleName, api] of Object.entries(modules)) {
+        if (!api || typeof api !== 'object') continue;
+        const exposed = {};
+        for (const [fnName, fn] of Object.entries(api)) {
+          exposed[fnName] = typeof fn === 'function'
+            ? native(async (args) => this.fromPlain(await fn(...args.map((a) => this.toPlain(a)))))
+            : fn;
+        }
+        this.globals.define(moduleName, exposed);
+      }
+    }
+
+    /** Map/array do VessieScript -> objeto/array puro de JS. */
+    toPlain(value) {
+      if (value instanceof Map) {
+        const out = {};
+        for (const [k, v] of value.entries()) out[k] = this.toPlain(v);
+        return out;
+      }
+      if (Array.isArray(value)) return value.map((v) => this.toPlain(v));
+      if (value instanceof VInstance) {
+        const out = {};
+        for (const [k, v] of value.fields.entries()) out[k] = this.toPlain(v);
+        return out;
+      }
+      return value;
+    }
+
+    /** Objeto/array puro de JS -> Map/array do VessieScript. */
+    fromPlain(value) {
+      if (Array.isArray(value)) return value.map((v) => this.fromPlain(v));
+      if (value && typeof value === 'object' && !(value instanceof Map) && Object.getPrototypeOf(value) === Object.prototype) {
+        const map = new Map();
+        for (const [k, v] of Object.entries(value)) map.set(k, this.fromPlain(v));
+        return map;
+      }
+      return value === undefined ? null : value;
     }
 
     stringify(v) {
@@ -900,6 +1288,25 @@
           }
           return null;
         }
+        case 'TryStmt': {
+          let result = null;
+          try {
+            result = await this.execBlock(node.block, env);
+          } catch (error) {
+            if (!node.handler) throw error;
+            const scope = new Environment(env);
+            const value = error instanceof VessieThrow ? error.value : String(error.message || error);
+            if (node.param) scope.define(node.param, value);
+            result = await this.execBlock(node.handler, scope);
+          } finally {
+            if (node.finalizer) {
+              const finallyResult = await this.execBlock(node.finalizer, env);
+              if (finallyResult instanceof ReturnSignal) result = finallyResult;
+            }
+          }
+          return result;
+        }
+        case 'ThrowStmt': throw new VessieThrow(await this.evalExpr(node.value, env));
         case 'ReturnStmt': return new ReturnSignal(node.value ? await this.evalExpr(node.value, env) : null);
         case 'BreakStmt': return new BreakSignal();
         case 'ContinueStmt': return new ContinueSignal();
@@ -954,6 +1361,30 @@
           break;
         }
         case 'AwaitExpr': return this.evalExpr(node.argument, env);
+        case 'TemplateLit': {
+          let out = node.quasis[0] || '';
+          for (let i = 0; i < node.exprs.length; i++) {
+            out += this.stringify(await this.evalExpr(node.exprs[i], env));
+            out += node.quasis[i + 1] || '';
+          }
+          return out;
+        }
+        case 'NullishExpr': {
+          const left = await this.evalExpr(node.left, env);
+          return left === null || left === undefined ? this.evalExpr(node.right, env) : left;
+        }
+        case 'MatchExpr': {
+          const subject = await this.evalExpr(node.subject, env);
+          for (const arm of node.arms) {
+            if (arm.test !== null && !deepEqual(await this.evalExpr(arm.test, env), subject)) continue;
+            if (arm.body.type === 'Block') {
+              const result = await this.execBlock(arm.body, env);
+              return result instanceof ReturnSignal ? result.value : result;
+            }
+            return this.evalExpr(arm.body, env);
+          }
+          return null;
+        }
         case 'BinaryExpr': return this.evalBinary(node, env);
         case 'LogicalExpr': {
           const left = await this.evalExpr(node.left, env);
@@ -979,6 +1410,7 @@
         case '*': return l * r;
         case '/': return l / r;
         case '%': return l % r;
+        case '**': return Math.pow(l, r);
         case '==': return deepEqual(l, r);
         case '!=': return !deepEqual(l, r);
         case '<': return l < r;
@@ -1004,6 +1436,7 @@
         return method.bind(thisVal, method.ownerClass);
       }
       const obj = await this.evalExpr(node.object, env);
+      if (node.optional && (obj === null || obj === undefined)) return null;
       if (node.computed) {
         const key = await this.evalExpr(node.property, env);
         if (Array.isArray(obj)) return obj[key];
@@ -1054,6 +1487,7 @@
       }
 
       const callee = await this.evalExpr(node.callee, env);
+      if (node.optional && (callee === null || callee === undefined)) return null;
       return this.callFunction(callee, args);
     }
 
@@ -1063,7 +1497,14 @@
       if (!(fn instanceof VFunction)) this.error(`Valor não é uma função: ${this.stringify(fn)}`);
 
       const scope = new Environment(fn.closure);
-      fn.decl.params.forEach((p, i) => scope.define(p, args[i] !== undefined ? args[i] : null));
+      const defaults = fn.decl.defaults || [];
+      for (let i = 0; i < fn.decl.params.length; i++) {
+        const provided = args[i];
+        const value = provided !== undefined && provided !== null
+          ? provided
+          : (defaults[i] ? await this.evalExpr(defaults[i], fn.closure) : (provided === undefined ? null : provided));
+        scope.define(fn.decl.params[i], value);
+      }
       if (fn.boundThis !== null && fn.boundThis !== undefined) scope.define('this', fn.boundThis);
       if (fn.ownerClass) scope.define('__class', fn.ownerClass);
 
@@ -1088,6 +1529,7 @@
           case '-=': finalValue = current - value; break;
           case '*=': finalValue = current * value; break;
           case '/=': finalValue = current / value; break;
+          case '**=': finalValue = Math.pow(current, value); break;
         }
       }
 
@@ -1125,7 +1567,8 @@
       return interp;
     },
     async compileToAST(source) { return parse(source); },
+    version: '2.0.0',
   };
 
-  return { VessieScript, __internal: { Lexer, Parser, TT, VessieSyntaxError, VessieRuntimeError } };
+  return { VessieScript, __internal: { Lexer, Parser, TT, VessieSyntaxError, VessieRuntimeError, VessieThrow } };
 });

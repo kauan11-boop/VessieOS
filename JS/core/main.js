@@ -848,7 +848,6 @@
     { n: 'Minecraft', u: 'https://play.mcjs.cc/1.8.8/', ic: 'https://www.rw-designer.com/icon-image/5547-256x256x32.png' },
     { n: 'Parking Fury 3D: Night Thief', u: 'https://1v1-lol.gitlab.io/go/class-725.html', ic: 'https://jamestore214.github.io/img/class-725.png' },
     { n: 'Idle Startup Tycoon', u: 'https://1v1-lol.gitlab.io/go/class-778.html', ic: 'https://jamestore214.github.io/img/class-778.png' },
-    { n: 'Exemple', u: 'Exemple', ic: 'Exemple' },
     { n: 'City Brawl', u: 'https://orbit-kick.com/games/city-brawl/', ic: 'https://dam.orbit-kick.com/styles/medium/s3/games/city-brawl-cover.png.webp' },
     { n: 'Bat Smash', u: 'https://orbit-kick.com/games/bat-smash/', ic: 'https://dam.orbit-kick.com/styles/medium/s3/games/bat-smash-cover.png.webp' },
     { n: 'Wacky Steps', u: 'https://orbit-kick.com/games/wacky-steps/', ic: 'https://dam.orbit-kick.com/styles/medium/s3/games/wacky-steps-cover.png.webp' },
@@ -873,7 +872,7 @@
     { n: 'Wacky Nursery 2', u: 'https://orbit-kick.com/games/wacky-nursery-2/', ic: 'https://dam.orbit-kick.com/styles/medium/s3/games/wacky-nursery-2-cover.png.webp' },
     { n: 'Wacky Nursery', u: 'https://orbit-kick.com/games/wacky-nursery/', ic: 'https://dam.orbit-kick.com/styles/medium/s3/games/wacky-nursery-cover.png.webp' },
     { n: 'Hyper Tunnel', u: 'https://orbit-kick.com/games/hyper-tunnel/', ic: 'https://dam.orbit-kick.com/styles/medium/s3/games/hyper-tunnel-cover.png.webp' },
-    { n: 'Knife Master', u: 'https://dam.orbit-kick.com/styles/medium/s3/games/knife-master-cover.png.webp', ic: 'https://orbit-kick.com/games/knife-master/' },
+    { n: 'Knife Master', u: 'https://orbit-kick.com/games/knife-master/', ic: 'https://dam.orbit-kick.com/styles/medium/s3/games/knife-master-cover.png.webp' },
     { n: 'Rocket Soccer Derby', u: 'https://1v1-lol.gitlab.io/go/class-527.html', ic: 'https://jamestore214.github.io/img/class-527.png' },
     { n: 'IZOWAVE', u: 'https://1v1-lol.gitlab.io/go/class-325.html', ic: 'https://jamestore214.github.io/img/class-325.png' },
     { n: 'Rock Paper Clicker', u: 'https://1v1-lol.gitlab.io/go/class-1127.html', ic: 'https://jamestore214.github.io/img/class-1127.png' },
@@ -4539,7 +4538,35 @@ Responda sempre em português brasileiro, de forma fofa e carismática!`;
     const base = GAMES.map(g => ({ id: 'g_' + Math.random().toString(36).slice(2, 9), name: g.n, url: g.u, icon: g.ic, cover: g.ic, added: Date.now(), plays: 0 }));
     return dedupeGames([...base, ...templates]);
   }
+  /**
+   * Biblioteca v2 (JS/systems/game-library.js): seleção, limpeza de jogos
+   * quebrados, import/export e — principalmente — a política de segurança
+   * aplicada em toda entrada e saída. Jogos apontando para IP cru
+   * (200.168.0.10, 10.0.0.5, 0x7f000001) nunca chegam à tela.
+   * Se o módulo não carregar, o Game Hub cai no caminho antigo.
+   */
+  let _steamLibrary = null;
+  function steamLibrary() {
+    if (_steamLibrary) return _steamLibrary;
+    if (!window.VessieGameLibrary || !window.VessieURLGuard) return null;
+    _steamLibrary = new window.VessieGameLibrary.GameLibrary({
+      guard: window.VessieURLGuard,
+      doctor: window.VessieIframeDoctor,
+      key: STEAM_KEY
+    });
+    const seed = buildBaseSteamLibrary();
+    _steamLibrary.load(seed);
+    _steamLibrary.addMany(seed); // jogos novos da lista base entram sem duplicar
+    window.VessieOS = window.VessieOS || {};
+    window.VessieOS.gameLibrary = _steamLibrary; // consumida pelo VessieScript (módulo `games`)
+    return _steamLibrary;
+  }
+  // Acesso único à biblioteca para o resto do sistema (scripting, módulos).
+  window.vessieGameLibrary = steamLibrary;
+
   function steamLoad() {
+    const library = steamLibrary();
+    if (library) return library.all();
     try {
       const stored = JSON.parse(localStorage.getItem(STEAM_KEY));
       if (Array.isArray(stored)) {
@@ -4558,7 +4585,17 @@ Responda sempre em português brasileiro, de forma fofa e carismática!`;
     localStorage.setItem(STEAM_KEY, JSON.stringify(seed));
     return seed;
   }
-  function steamSave(lib) { localStorage.setItem(STEAM_KEY, JSON.stringify(lib)); }
+  function steamSave(lib) {
+    const library = steamLibrary();
+    if (library) { library.games = lib; library.save(); return; }
+    localStorage.setItem(STEAM_KEY, JSON.stringify(lib));
+  }
+
+  /** Veredito de segurança de uma URL, com fallback quando o guard não carregou. */
+  function steamGuard(url) {
+    if (window.VessieURLGuard) return window.VessieURLGuard.inspect(url);
+    return { ok: /^https?:\/\//i.test(url || ''), url, message: 'Endereço inválido.' };
+  }
   function steamSources() {
     try { const d = JSON.parse(localStorage.getItem(STEAM_SRC_KEY)); if (Array.isArray(d)) return d; } catch (e) { }
     return ['https://snowriderio.io', 'https://azgames.io', 'https://classicgamezone.com'];
@@ -4618,26 +4655,75 @@ Responda sempre em português brasileiro, de forma fofa e carismática!`;
   function steamLog(msg, cls = '') { const el = document.getElementById('st-log'); if (!el) return; el.classList.add('show'); el.innerHTML += `<div class="${cls}">${msg}</div>`; el.scrollTop = el.scrollHeight; }
 
   window.steamAddGame = async function (url) {
-    url = url.trim(); if (!url) return;
-    if (!/^https?:/.test(url)) url = 'https://' + url;
+    url = (url || '').trim(); if (!url) return;
+    const verdict = steamGuard(url);
+    if (!verdict.ok) {
+      steamLog('⛔ Bloqueado: ' + verdict.message, 'er');
+      toast('⛔ ' + verdict.message, 'error');
+      return;
+    }
+    url = verdict.url;
     steamLog('→ Analisando ' + url, 'in');
     try {
       const html = await steamFetch(url);
       const meta = steamParse(html, url);
-      const lib = steamLoad();
-      if (lib.some(g => g.url === url)) { steamLog('⚠ Já está na biblioteca', 'er'); return; }
-      lib.push({ id: 'g_' + Math.random().toString(36).slice(2, 9), name: meta.name, url, icon: meta.icon, cover: meta.cover, added: Date.now(), plays: 0 });
-      steamSave(dedupeGames(lib));
+      const library = steamLibrary();
+      if (library) {
+        const result = library.add({ name: meta.name, url, icon: meta.icon, cover: meta.cover });
+        if (!result.ok) { steamLog('⚠ ' + result.message, 'er'); return; }
+      } else {
+        const lib = steamLoad();
+        if (lib.some(g => g.url === url)) { steamLog('⚠ Já está na biblioteca', 'er'); return; }
+        lib.push({ id: 'g_' + Math.random().toString(36).slice(2, 9), name: meta.name, url, icon: meta.icon, cover: meta.cover, added: Date.now(), plays: 0 });
+        steamSave(dedupeGames(lib));
+      }
       steamLog('✓ Adicionado: ' + meta.name, 'ok');
       if (document.getElementById('st-grid')) steamRender('library');
       toast('🎮 ' + meta.name + ' adicionado à biblioteca', 'success');
     } catch (e) { steamLog('✗ Erro: ' + e.message, 'er'); }
   };
 
+  /**
+   * Coletor v2: aprende os padrões de URL da própria biblioteca
+   * (/go/class-:num.html, /games/:slug/ ...) e só aceita links que se
+   * pareçam com jogos e passem na política de segurança.
+   */
+  async function steamCrawlWithCollector(url) {
+    if (!window.VessieCollector || !window.VessieGamePatterns) return false;
+    const library = steamLibrary();
+    if (!library) return false;
+    const collector = new window.VessieCollector.VessieCollector({
+      guard: window.VessieURLGuard,
+      patterns: window.VessieGamePatterns,
+      log: (msg, cls) => steamLog(msg, cls || 'in')
+    });
+    collector.train(library.all());
+    const result = await collector.collectSite(url, { limit: 15 });
+    const { added, rejected } = library.addMany(result.games);
+    result.blocked.forEach(b => steamLog('  ⛔ ' + b.url + ' — ' + b.reason, 'er'));
+    steamLog(`✓ Concluído: ${added.length} novos, ${rejected.length} ignorados, ${result.blocked.length} bloqueados por segurança`, 'ok');
+    if (document.getElementById('st-grid')) steamRender('library');
+    toast('🎮 ' + added.length + ' jogos coletados', 'success');
+    return true;
+  }
+
   window.steamCrawlSite = async function (url) {
-    url = url.trim(); if (!url) return;
-    if (!/^https?:/.test(url)) url = 'https://' + url;
+    url = (url || '').trim(); if (!url) return;
+    const verdict = steamGuard(url);
+    if (!verdict.ok) {
+      steamLog('⛔ Site bloqueado: ' + verdict.message, 'er');
+      toast('⛔ ' + verdict.message, 'error');
+      return;
+    }
+    url = verdict.url;
     steamLog('🔎 Explorando ' + url, 'in');
+    const srcsKnown = steamSources();
+    if (!srcsKnown.includes(url)) { srcsKnown.push(url); steamSaveSrc(srcsKnown); }
+    try {
+      if (await steamCrawlWithCollector(url)) return;
+    } catch (e) {
+      steamLog('✗ Coletor v2 falhou (' + e.message + '), usando o modo simples', 'er');
+    }
     try {
       const html = await steamFetch(url);
       const links = steamDiscover(html, url);
@@ -4670,12 +4756,17 @@ Responda sempre em português brasileiro, de forma fofa e carismática!`;
 
   window.steamPlay = function (id) {
     const lib = steamLoad(); const g = lib.find(x => x.id === id); if (!g) return;
+    const verdict = steamGuard(g.url);
+    if (!verdict.ok) {
+      toast('⛔ ' + verdict.message, 'error');
+      return;
+    }
     g.plays = (g.plays || 0) + 1; g.lastPlay = Date.now(); steamSave(lib);
     // VessieCoin: recompensa por sessão de jogo (com cooldown por jogo, ver vessiecoin/index.js)
     window.VessieCoin?.earn(5, `Jogou ${g.name}`, { sourceId: `game:${g.id}` });
     const gameEngine = ServiceLocator.resolve('GameEngine');
     if (gameEngine && typeof gameEngine.launch === 'function') {
-      gameEngine.launch(g.url, g.name);
+      gameEngine.launch(verdict.url, g.name);
     } else {
       // Bezel 3D: uma moldura com fundo Three.js (partículas + núcleo reativo)
       // por trás do iframe do jogo, dando uma sensação de "capsule/rig" ao redor
@@ -4684,7 +4775,7 @@ Responda sempre em português brasileiro, de forma fofa e carismática!`;
       const winContent = `
         <div class="gh-play-bezel">
           <canvas class="gh-play-3d" aria-hidden="true"></canvas>
-          <iframe src="${g.url}" style="border:none;width:100%;height:100%;position:relative;z-index:1" allow="fullscreen;autoplay" title="${g.name}"></iframe>
+          <iframe src="${verdict.url}" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-popups-to-escape-sandbox allow-forms" referrerpolicy="no-referrer" style="border:none;width:100%;height:100%;position:relative;z-index:1" allow="fullscreen;autoplay" title="${g.name}"></iframe>
         </div>`;
       const win = createWin(g.name, '<i class="fab fa-steam" style="color:#66c0f4"></i>', winContent, 920, 640);
       requestAnimationFrame(() => {
@@ -4771,6 +4862,50 @@ Responda sempre em português brasileiro, de forma fofa e carismática!`;
         <div class="st-sec-h"><h3>Sites recomendados</h3></div>
         ${['https://snowriderio.io', 'https://azgames.io', 'https://classicgamezone.com', 'https://1v1-lol.gitlab.io'].map(s => `<div class="st-src"><i class="fas fa-star" style="color:#f1c40f"></i><div class="url">${s}</div><button class="st-btn" style="padding:4px 9px" onclick="steamCrawlSite('${s}')">Coletar</button></div>`).join('')}
       </div>`;
+    } else if (view === 'manage') {
+      const library = steamLibrary();
+      if (!library) {
+        main.innerHTML = '<div class="st-hdr"><h2>GERENCIAR</h2></div><div class="st-content"><div class="st-hero"><p>Módulos de gerenciamento não carregados.</p></div></div>';
+        return;
+      }
+      const items = steamManageList();
+      const stats = library.stats();
+      const badge = (g) => {
+        if (!g.health) return '<span class="st-hl unchecked">não testado</span>';
+        const map = { ok: 'ok', unverified: 'warn', blocked: 'bad', error: 'bad', timeout: 'bad' };
+        return `<span class="st-hl ${map[g.health.status] || 'warn'}" title="${(g.health.detail || '').replace(/"/g, '')}">${g.health.label}</span>`;
+      };
+      main.innerHTML = `
+      <div class="st-hdr"><h2>GERENCIAR · ${stats.selected}/${items.length} selecionados</h2>
+        <input class="st-srch" placeholder="Filtrar..." value="${steamManageQuery.replace(/"/g, '&quot;')}" oninput="steamManageFilter(this.value)"></div>
+      <div class="st-content">
+        <div class="st-bulk">
+          <button class="st-btn sec" onclick="steamSelectAll()"><i class="fas fa-check-double"></i> Selecionar todos</button>
+          <button class="st-btn sec" onclick="steamInvertSel()"><i class="fas fa-right-left"></i> Inverter</button>
+          <button class="st-btn sec" onclick="steamClearSel()"><i class="fas fa-ban"></i> Limpar seleção</button>
+          <button class="st-btn danger" onclick="steamDeleteSel()"><i class="fas fa-trash"></i> Excluir selecionados</button>
+          <button class="st-btn" onclick="steamDiagnose()"><i class="fas fa-stethoscope"></i> Testar iframes</button>
+          <button class="st-btn danger" onclick="steamDeleteBroken()"><i class="fas fa-broom"></i> Remover quebrados</button>
+          <button class="st-btn danger" onclick="steamSecuritySweep()"><i class="fas fa-shield-halved"></i> Varredura de segurança</button>
+          <button class="st-btn sec" onclick="steamExport()"><i class="fas fa-file-export"></i> Exportar</button>
+          <label class="st-btn sec" style="cursor:pointer"><i class="fas fa-file-import"></i> Importar
+            <input type="file" accept="application/json" style="display:none" onchange="steamImportFile(this)"></label>
+        </div>
+        <div class="st-hero" style="margin:12px 0">
+          <p><b>${stats.total}</b> jogos · <b>${stats.hosts}</b> sites · saúde: ${stats.health.ok} ok, ${stats.health.error + stats.health.timeout + stats.health.blocked} com problema, ${stats.health.unverified} não verificáveis, ${stats.health.unchecked} não testados.</p>
+          <p style="font-size:.8rem;opacity:.8">Endereços em IP cru (ex.: <code>200.168.0.10</code>), hosts locais, portas incomuns e arquivos executáveis são recusados na entrada e na varredura. O navegador não revela o motivo exato de uma recusa de iframe entre origens — por isso “não verificável” nunca é apagado automaticamente.</p>
+        </div>
+        <div class="st-mg-list">
+          ${items.map(g => `
+            <div class="st-mg ${library.isSelected(g.id) ? 'sel' : ''}" onclick="steamToggleSel('${g.id}',event)">
+              <input type="checkbox" ${library.isSelected(g.id) ? 'checked' : ''} onclick="steamToggleSel('${g.id}',event)">
+              ${g.icon ? `<img src="${g.icon}" onerror="this.style.display='none'" alt="">` : ''}
+              <div class="st-mg-meta"><b>${g.name}</b><span>${g.url}</span></div>
+              ${badge(g)}
+              <button class="del" title="Remover" onclick="steamRemove('${g.id}',event)"><i class="fas fa-times"></i></button>
+            </div>`).join('') || '<div class="st-empty"><i class="fas fa-gamepad"></i><div>Nada para gerenciar</div></div>'}
+        </div>
+      </div>`;
     } else if (view === 'community') {
       main.innerHTML = `
       <div class="st-hdr"><h2>COMUNIDADE</h2></div>
@@ -4801,6 +4936,95 @@ Responda sempre em português brasileiro, de forma fofa e carismática!`;
 
   window.steamRmSrc = function (s) { const x = steamSources().filter(u => u !== s); steamSaveSrc(x); steamRender('store'); };
 
+  // ---------- GERENCIAR: seleção, limpeza e import/export ----------
+  window.steamToggleSel = function (id, e) {
+    e && e.stopPropagation();
+    const library = steamLibrary(); if (!library) return;
+    library.toggle(id);
+    steamRender('manage');
+  };
+  window.steamSelectAll = function () {
+    const library = steamLibrary(); if (!library) return;
+    library.selectAll(steamManageList());
+    steamRender('manage');
+  };
+  window.steamInvertSel = function () {
+    const library = steamLibrary(); if (!library) return;
+    library.invertSelection(steamManageList());
+    steamRender('manage');
+  };
+  window.steamClearSel = function () {
+    const library = steamLibrary(); if (!library) return;
+    library.clearSelection();
+    steamRender('manage');
+  };
+  window.steamDeleteSel = function () {
+    const library = steamLibrary(); if (!library) return;
+    const count = library.selectedCount();
+    if (!count) return toast('Nenhum jogo selecionado', 'error');
+    const removed = library.deleteSelected();
+    steamRender('manage');
+    toast('🗑 ' + removed.length + ' jogos removidos', 'success');
+  };
+  window.steamSecuritySweep = function () {
+    const library = steamLibrary(); if (!library) return;
+    const removed = library.securitySweep();
+    steamRender('manage');
+    toast(removed.length ? '🛡 ' + removed.length + ' jogos inseguros removidos' : '🛡 Nenhum jogo inseguro encontrado', removed.length ? 'success' : 'default');
+  };
+  window.steamDiagnose = async function () {
+    const library = steamLibrary(); if (!library || !window.VessieIframeDoctor) return;
+    const targets = library.selectedCount() ? library.selectedGames() : library.all();
+    steamLog('🩺 Diagnosticando ' + targets.length + ' jogos...', 'in');
+    toast('🩺 Testando ' + targets.length + ' jogos em iframe...', 'default');
+    const results = await window.VessieIframeDoctor.diagnose(targets, { timeout: 9000, concurrency: 3 });
+    library.applyHealth(results);
+    const summary = window.VessieIframeDoctor.summarize(results);
+    steamRender('manage');
+    toast(`🩺 ${summary.ok} ok · ${summary.error + summary.timeout + summary.blocked} com problema · ${summary.unverified} não verificáveis`, 'success');
+  };
+  window.steamDeleteBroken = function () {
+    const library = steamLibrary(); if (!library) return;
+    const removed = library.deleteBroken();
+    steamRender('manage');
+    toast(removed.length ? '🧹 ' + removed.length + ' jogos quebrados removidos' : 'Nenhum jogo quebrado confirmado — rode o diagnóstico antes', removed.length ? 'success' : 'default');
+  };
+  window.steamExport = function () {
+    const library = steamLibrary(); if (!library) return;
+    const json = library.exportJSON(library.selectedCount() > 0);
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'vessieos-biblioteca.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast('📤 Biblioteca exportada', 'success');
+  };
+  window.steamImport = function (text) {
+    const library = steamLibrary(); if (!library) return;
+    const result = library.importJSON(text);
+    if (result.error) return toast('⚠ ' + result.error, 'error');
+    steamRender('manage');
+    toast(`📥 ${result.added.length} adicionados · ${result.rejected.length} recusados pela segurança`, 'success');
+  };
+  window.steamImportFile = function (input) {
+    const file = input && input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => window.steamImport(String(reader.result || ''));
+    reader.readAsText(file);
+  };
+
+  let steamManageQuery = '';
+  function steamManageList() {
+    const library = steamLibrary();
+    return library ? library.filter(steamManageQuery) : [];
+  }
+  window.steamManageFilter = function (q) {
+    steamManageQuery = q || '';
+    steamRender('manage');
+  };
+
   function openGames() {
     const lib = steamLoad();
     const win = createWin('Steam', '<i class="fab fa-steam" style="color:#66c0f4"></i>', `
@@ -4810,6 +5034,7 @@ Responda sempre em português brasileiro, de forma fofa e carismática!`;
         <div class="st-nav">
           <div class="st-nv ac" data-view="library" onclick="steamRender('library')"><i class="fas fa-gamepad"></i> Biblioteca</div>
           <div class="st-nv" data-view="store" onclick="steamRender('store')"><i class="fas fa-store"></i> Loja</div>
+          <div class="st-nv" data-view="manage" onclick="steamRender('manage')"><i class="fas fa-list-check"></i> Gerenciar</div>
           <div class="st-nv" data-view="community" onclick="steamRender('community')"><i class="fas fa-users"></i> Comunidade</div>
           <div class="st-nv" data-view="downloads" onclick="steamRender('downloads')"><i class="fas fa-download"></i> Downloads</div>
           <div class="st-nv" data-view="friends" onclick="steamRender('friends')"><i class="fas fa-user-friends"></i> Amigos</div>
