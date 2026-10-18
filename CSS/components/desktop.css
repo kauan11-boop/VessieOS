@@ -44,18 +44,33 @@
   color: var(--text);
 }
 
+/* Tamanhos dinâmicos de ícone - definidos via data-sz pelo JS */
+.di[data-sz="s"] { width: 80px; }
+.di[data-sz="m"] { width: 100px; }
+.di[data-sz="l"] { width: 130px; }
+.di[data-sz="xl"] { width: 160px; }
+
 .di .ic {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.08);
   display: grid;
   place-items: center;
   box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
+  transition: transform .12s ease;
+}
+
+.di .ic:hover {
+  transform: scale(1.05);
 }
 
 .di .label {
   font-size: 0.72rem;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }

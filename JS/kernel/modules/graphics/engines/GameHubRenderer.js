@@ -40,7 +40,9 @@ export default class GameHubRenderer {
     }
 
     _particleCount() {
-        const quality = this.performanceManager?.getQuality?.();
+        const quality = (typeof this.performanceManager?.getQuality === 'function')
+            ? this.performanceManager.getQuality()
+            : null;
         if (!quality) return 900;
         if (quality.effects >= 0.8) return 1400;
         if (quality.effects >= 0.5) return 900;

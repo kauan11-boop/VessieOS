@@ -438,7 +438,9 @@ export class PerformanceBooster {
     // ================================================================
 
     _applyPerformanceMode(mode) {
-        const quality = this.performanceManager?.getQuality() || {};
+        const quality = (typeof this.performanceManager?.getQuality === 'function')
+            ? this.performanceManager.getQuality()
+            : {};
         const effects = quality.effects || 1;
 
         if (mode === 'power-saving' || mode === 'low') {

@@ -18,6 +18,16 @@
   window.VessieOS = window.VessieOS || {};
   window.VessieOS.graphics = {
     setBackground,
-    setMediaBackground
+    setMediaBackground,
+    mountGameHubScene() {
+      return false;
+    },
+    unmountGameHubScene() {
+      return false;
+    },
+    pulseGameHubScene() {
+      return false;
+    },
+    gameHubRenderer: null
   };
 })();

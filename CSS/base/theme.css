@@ -126,12 +126,7 @@
   --bp-desktop: 1200px;
 }
 
-/* Tema explícito por classe (usado por visual.auto-theme-schedule) —
-   apenas placeholders para quando o VessieOS ganhar um tema claro
-   completo; hoje a maior parte do main.css assume o tema escuro. */
-html.theme-light {
-  color-scheme: light;
-}
+/* (Seletor html.theme-light removido junto com o tema claro.) */
 html.theme-dark {
   color-scheme: dark;
 }

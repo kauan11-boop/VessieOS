@@ -59,7 +59,7 @@ class Vessie3DProEngine {
 
     _setupScene() {
         this.scene = new this.THREE.Scene();
-        this.scene.background = new this.THREE.Color(0x05050a);
+        this.scene.background = null;
         this.scene.fog = new this.THREE.FogExp2(0x05050a, 0.015);
     }
 
@@ -71,13 +71,20 @@ class Vessie3DProEngine {
     }
 
     _setupRenderer() {
-        this.renderer = new this.THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        this.renderer = new this.THREE.WebGLRenderer({
+            alpha: true,
+            antialias: true,
+            powerPreference: 'high-performance'
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setClearColor(0x000000, 0);
         this.renderer.shadowMap.enabled = this.config.shadows;
         this.renderer.shadowMap.type = this.THREE.PCFSoftShadowMap;
         this.renderer.toneMapping = this.THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2;
+        this.renderer.domElement.setAttribute('aria-hidden', 'true');
+        this.renderer.domElement.style.cssText += ';position:fixed;inset:0;z-index:0;pointer-events:none';
         document.body.appendChild(this.renderer.domElement);
     }
 
@@ -626,6 +633,10 @@ class Vessie3DProEngine {
 
 // Registra no escopo global do VessieOS
 if (typeof window !== 'undefined') {
-    window.Vessie3DPro = new Vessie3DProEngine();
-    document.addEventListener('visibilitychange', () => window.Vessie3DPro._handleVisibilityChange());
+    if (!window.Vessie3DPro || typeof window.Vessie3DPro._handleVisibilityChange !== 'function') {
+        window.Vessie3DPro = new Vessie3DProEngine();
+    }
+    if (window.Vessie3DPro && typeof window.Vessie3DPro._handleVisibilityChange === 'function') {
+        document.addEventListener('visibilitychange', () => window.Vessie3DPro._handleVisibilityChange());
+    }
 }

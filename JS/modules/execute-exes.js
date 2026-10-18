@@ -1,5 +1,138 @@
 (function () {
   const appName = 'Execute Exes';
+
+  // ===========================================================================
+  // Registro de caminhos/comandos (JSON) — persistido em localStorage
+  // (rápido, síncrono, sempre disponível) com espelho em IndexedDB
+  // (assíncrono, mais espaço, prepara o terreno pra crescer sem limite
+  // dos ~5MB do localStorage). Cada item é exatamente o formato pedido:
+  //   { "path": "C:\\Windows\\explorer.exe", "cmd": "Abrir Explorador" }
+  // com um campo "origin" a mais pra distinguir os 2 padrões do sistema
+  // dos que o usuário for cadastrando. "%User%" em qualquer campo do
+  // item é resolvido pro usuário logado no momento da execução (ver
+  // resolveUserTag) — assim um item pode apontar pra
+  // "C:\Users\%User%\Desktop\..." e funcionar pra qualquer sessão.
+  // ===========================================================================
+  const STORAGE_KEY = 'vessieos:pathRegistry';
+  const IDB_NAME = 'VessieOSRegistry';
+  const IDB_STORE = 'entries';
+
+  const DEFAULT_ENTRIES = [
+    { id: 'default-explorer', path: 'C:\\Windows\\explorer.exe', cmd: 'Abrir Explorador de Arquivos', icon: '📁', origin: 'default', action: 'app:explorer' },
+    { id: 'default-cmd', path: 'C:\\Windows\\System32\\cmd.exe', cmd: 'Abrir Terminal', icon: '💻', origin: 'default', action: 'app:terminal' }
+  ];
+
+  function resolveUserTag(value) {
+    const user = (window.VessieOS && window.VessieOS.currentUser) || 'Usuario';
+    return String(value ?? '').replace(/%user%/gi, () => user);
+  }
+
+  function openIDB() {
+    if (!('indexedDB' in window)) return Promise.resolve(null);
+    if (openIDB._p) return openIDB._p;
+    openIDB._p = new Promise((resolve) => {
+      try {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE, { keyPath: 'id' });
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+    return openIDB._p;
+  }
+
+  async function mirrorToIDB(list) {
+    const db = await openIDB();
+    if (!db) return false;
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        const store = tx.objectStore(IDB_STORE);
+        store.clear();
+        list.forEach((item) => store.put(item));
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (e) { resolve(false); }
+    });
+  }
+
+  const PathRegistry = {
+    _list: null,
+
+    /** Carrega do localStorage (síncrono); IndexedDB fica só como espelho
+     * de backup — localStorage é a fonte da verdade em tempo de leitura
+     * pra não precisar tornar toda leitura assíncrona no resto do app. */
+    load() {
+      if (this._list) return this._list;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) { this._list = JSON.parse(raw); return this._list; }
+      } catch (e) { /* localStorage indisponível ou JSON corrompido */ }
+      this._list = DEFAULT_ENTRIES.map((e) => ({ ...e }));
+      this.save();
+      return this._list;
+    },
+
+    save() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this._list)); } catch (e) { /* quota cheia etc */ }
+      mirrorToIDB(this._list); // fire-and-forget, best-effort
+    },
+
+    list() { return this.load().map((e) => ({ ...e, path: resolveUserTag(e.path), cmd: resolveUserTag(e.cmd) })); },
+
+    find(query) {
+      const q = String(query || '').trim().toLowerCase();
+      return this.list().find((e) => e.path.toLowerCase() === q || e.cmd.toLowerCase() === q || e.id === query);
+    },
+
+    /** Cadastra uma entrada de usuário. `%User%` em path/cmd é aceito e
+     * fica salvo literal (só é resolvido na hora de listar/executar), pra
+     * continuar válido mesmo se o nome de usuário mudar depois. */
+    add(path, cmd, extra = {}) {
+      if (!path || !cmd) throw new Error('path e cmd são obrigatórios.');
+      const list = this.load();
+      const id = `user-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const entry = { id, path: String(path), cmd: String(cmd), icon: extra.icon || '📄', origin: 'user', action: extra.action || null };
+      list.push(entry);
+      this.save();
+      return entry;
+    },
+
+    /** Só remove entradas de usuário — os 2 padrões não podem ser apagados
+     * (mesma regra dos atalhos "de fábrica" do Windows). */
+    remove(id) {
+      const list = this.load();
+      const target = list.find((e) => e.id === id);
+      if (!target) return false;
+      if (target.origin === 'default') throw new Error('Entradas padrão do sistema não podem ser removidas.');
+      this._list = list.filter((e) => e.id !== id);
+      this.save();
+      return true;
+    },
+
+    resetToDefaults() { this._list = DEFAULT_ENTRIES.map((e) => ({ ...e })); this.save(); return this._list; },
+
+    /** Executa uma entrada: entradas com `action` conhecida abrem o app
+     * real do desktop (mesmo caminho que um clique no ícone usaria).
+     * Entradas de usuário sem ação associada apenas confirmam que foram
+     * encontradas — ainda não há um jeito genérico de "rodar" um caminho
+     * arbitrário sem saber que app ele representa. */
+    execute(idOrQuery) {
+      const entry = this.list().find((e) => e.id === idOrQuery) || this.find(idOrQuery);
+      if (!entry) throw new Error(`Nenhuma entrada encontrada para "${idOrQuery}".`);
+      if (entry.action && entry.action.startsWith('app:') && typeof window.openApp === 'function') {
+        window.openApp(entry.action.slice(4));
+      }
+      return entry;
+    }
+  };
+
+  window.VessieOS = window.VessieOS || {};
+  window.VessieOS.PathRegistry = PathRegistry;
+
   const catalog = [
     { id: 'calc', name: 'Calculator.exe', path: 'C:/System32/Calculator.exe', icon: '🧮', type: 'native', memory: 48, description: 'Calculadora do sistema', owner: 'system' },
     { id: 'cmd', name: 'Command Prompt.exe', path: 'C:/Windows/System32/cmd.exe', icon: '💻', type: 'console', memory: 64, description: 'Prompt de comandos', owner: 'user' },
@@ -44,8 +177,8 @@
     item.innerHTML = '<div class="ai">💼</div><span>Execute Exes</span>';
     item.addEventListener('click', () => {
       openWindow();
-      const sm = document.getElementById('sm');
-      if (sm) sm.style.display = 'none';
+      if (typeof window.closeStartMenu === 'function') window.closeStartMenu();
+      else { const sm = document.getElementById('sm'); if (sm) sm.classList.remove('open'); }
     });
     startMenu.appendChild(item);
   }
@@ -80,6 +213,12 @@
               <button class="execute-exes-button" id="execute-exes-refresh">Atualizar</button>
             </div>
             <div id="execute-exes-list" class="execute-exes-list"></div>
+
+            <div class="execute-exes-header-row" style="margin-top:14px;">
+              <strong>Registro (JSON)</strong>
+              <button class="execute-exes-button" id="path-registry-add">+ Novo</button>
+            </div>
+            <div id="path-registry-list" class="execute-exes-list"></div>
           </div>
           <div class="execute-exes-panel">
             <div class="execute-exes-card">
@@ -164,6 +303,11 @@
       });
     }
 
+    const addRegistryButton = document.getElementById('path-registry-add');
+    if (addRegistryButton) {
+      addRegistryButton.addEventListener('click', addPathRegistryEntry);
+    }
+
     if (clearLogButton) {
       clearLogButton.addEventListener('click', () => {
         const kernel = window.VessieOS && window.VessieOS.kernel;
@@ -178,6 +322,18 @@
     if (!selected) return catalog[0];
     const id = selected.dataset.exeId;
     return catalog.find((item) => item.id === id) || catalog[0];
+  }
+
+  /** Log simples e independente do kernel (o registry funciona mesmo se
+   * o kernel real não estiver disponível), no mesmo estilo visual das
+   * entradas de log já usadas pelo restante desta janela. */
+  function appendLog(message) {
+    const log = document.getElementById('execute-exes-log');
+    if (!log) return;
+    const entry = document.createElement('div');
+    entry.className = 'execute-log-entry info';
+    entry.textContent = `[${new Date().toLocaleTimeString('pt-BR')}] ${message}`;
+    log.prepend(entry);
   }
 
   function renderList() {
@@ -205,6 +361,65 @@
 
     const first = catalog[0];
     if (first) updateSelectedInfo(first);
+    renderPathRegistry();
+  }
+
+  /** Lista os itens do JSON registry (2 padrão + os que o usuário cadastrar),
+   * com "%User%" já resolvido pro nome de usuário atual (ver resolveUserTag).
+   * Item padrão não tem botão de remover — mesma regra de "atalhos de
+   * fábrica" do Windows, que também não dá pra apagar do menu Executar. */
+  function renderPathRegistry() {
+    const list = document.getElementById('path-registry-list');
+    if (!list) return;
+    const entries = PathRegistry.list();
+    list.innerHTML = entries.map((item) => `
+      <button class="exe-item" data-reg-id="${item.id}" title="${item.path}">
+        <span>${item.icon || '📄'}</span>
+        <div>
+          <strong>${item.cmd}</strong>
+          <small>${item.path}${item.origin === 'default' ? ' · padrão' : ' · usuário'}</small>
+        </div>
+        ${item.origin === 'user' ? `<span class="path-registry-remove" data-remove-id="${item.id}" title="Remover">✕</span>` : ''}
+      </button>
+    `).join('') || '<div style="padding:10px;color:var(--muted);font-size:.82rem;">Nenhuma entrada.</div>';
+
+    list.querySelectorAll('.exe-item').forEach((button) => {
+      button.addEventListener('click', (e) => {
+        if (e.target.classList.contains('path-registry-remove')) return; // tratado abaixo
+        try {
+          PathRegistry.execute(button.dataset.regId);
+          appendLog(`✅ Executado via registro: ${button.dataset.regId}`);
+        } catch (err) {
+          appendLog(`❌ ${err.message}`);
+        }
+      });
+    });
+    list.querySelectorAll('.path-registry-remove').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        try {
+          PathRegistry.remove(btn.dataset.removeId);
+          renderPathRegistry();
+          appendLog('🗑️ Entrada removida do registro.');
+        } catch (err) {
+          appendLog(`❌ ${err.message}`);
+        }
+      });
+    });
+  }
+
+  function addPathRegistryEntry() {
+    const path = prompt('Caminho (ex.: C:\\Users\\%User%\\Desktop\\script.vl):');
+    if (!path) return;
+    const cmd = prompt('Nome do comando (ex.: "Abrir meu script"):');
+    if (!cmd) return;
+    try {
+      PathRegistry.add(path, cmd);
+      renderPathRegistry();
+      appendLog(`➕ Registrado: ${path} -> ${cmd}`);
+    } catch (err) {
+      appendLog(`❌ ${err.message}`);
+    }
   }
 
   function updateSelectedInfo(exe) {

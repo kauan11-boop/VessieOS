@@ -20,7 +20,7 @@
     window.mountGameHubThree = function (canvas, options = {}) {
         if (!canvas) return false;
         const graphics = getGraphics();
-        if (graphics) {
+        if (graphics && typeof graphics.mountGameHubScene === 'function') {
             return graphics.mountGameHubScene(canvas, options);
         }
         // GraphicsHub ainda não terminou de inicializar (a pipeline ES roda em
@@ -29,7 +29,7 @@
         const retry = setInterval(() => {
             attempts++;
             const g = getGraphics();
-            if (g) {
+            if (g && typeof g.mountGameHubScene === 'function') {
                 g.mountGameHubScene(canvas, options);
                 clearInterval(retry);
             } else if (attempts > 30) {
@@ -40,7 +40,10 @@
     };
 
     window.unmountGameHubThree = function () {
-        getGraphics()?.unmountGameHubScene();
+        const graphics = getGraphics();
+        if (graphics && typeof graphics.unmountGameHubScene === 'function') {
+            graphics.unmountGameHubScene();
+        }
     };
 
     window.pulseGameHubThree = function (accentColor) {

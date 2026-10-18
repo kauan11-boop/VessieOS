@@ -151,23 +151,9 @@ export default function buildVisualSystems({ helpers }) {
         };
     })());
 
-    // --- Agenda automática de tema claro/escuro por horário ---
-    systems.push((function autoThemeSchedule() {
-        let interval = null;
-        const apply = () => {
-            const hour = new Date().getHours();
-            const dark = hour < 7 || hour >= 19;
-            document.documentElement.classList.toggle('theme-light', !dark);
-            document.documentElement.classList.toggle('theme-dark', dark);
-        };
-        return {
-            id: 'visual.auto-theme-schedule', category: 'visual', name: 'Tema Automático por Horário',
-            description: 'Alterna entre tema claro e escuro automaticamente conforme o horário do dia (19h–7h = escuro).',
-            enabledByDefault: false,
-            enable() { apply(); interval = setInterval(apply, 5 * 60 * 1000); },
-            disable() { clearInterval(interval); }
-        };
-    })());
+    // --- Tema automático removido: VessieOS agora é somente escuro ---
+    // (sistema antigo de agendamento claro/escuro desativado junto com a
+    // remoção total do tema claro; bloco mantido como no-op documentado).
 
     // --- Ciclo de cor de destaque (accent color) ---
     systems.push((function accentCycle() {

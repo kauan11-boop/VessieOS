@@ -19,38 +19,21 @@
     <div class="boot-spin"></div>
   </div>
 
-  <!-- TERMS -->
-  <div id="terms" style="display:none">
-    <div class="tc">
-      <div style="font-size:4rem;margin-bottom:8px">💜</div>
-      <h2>Bem-vinda ao VessieOS!</h2>
-      <p style="color:#7888aa;font-size:.88rem;margin-bottom:16px">Por favor, leia os termos antes de continuar</p>
-      <ul>
-        <li>Este é um projeto feito com uma coca cola e uma coxinha.</li>
-        <li>Seus dados <strong> não são salvos</strong> em servidores externos.</li>
-        <li>Detectamos uma atividade suspeita entre nosso sistema por favor não fica tentando adivinhar o código ta bom
-          so não mexe endendeu, Existe coisas nesse sistema que não deve ser descoberto endende né.</li>
-        <li>Seja Bem vindo é serio não tenta foi o meu ultimo avisos Pode continhuar ASS: Vessie.</li>
-      </ul>
-      <button class="btn-p" id="btn-accept" style="margin-top:24px">Corcordo e entrar✨</button>
-    </div>
-  </div>
-
-  <!-- LOGIN -->
-  <div id="login" style="display:none">
-    <div class="lc">
-      <div class="l-av">💜</div>
+  <!-- Boas-vindas sobre o mesmo wallpaper da área de trabalho. -->
+  <section id="login" class="login-screen" style="display:none" aria-label="Boas-vindas do VessieOS">
+    <div class="login-wallpaper" id="login-wallpaper" aria-hidden="true"></div>
+    <div class="lc login-content">
+      <div class="l-av" aria-hidden="true"><i class="fas fa-user"></i></div>
+      <p class="login-greeting">Bem-vindo ao</p>
       <h2>VessieOS</h2>
-      <p>Entre com seu nome de usuário</p>
-      <input class="l-inp" id="l-name" placeholder="Seu nome..." value="Visitante" maxlength="20">
-      <input class="l-inp" id="l-pass" type="password" placeholder="Senha..." autocomplete="off">
-      <div class="l-err-box" id="l-err-box">
-        <div class="l-err-title">Senha incorreta</div>
-        <div class="l-err-sub">você não merece isso</div>
-      </div>
-      <button class="l-btn" id="l-btn">Entrar no Sistema →</button>
+      <label class="login-name-label" for="l-name">Como podemos chamar você?</label>
+      <input class="l-inp" id="l-name" placeholder="Visitante" value="Visitante" maxlength="40"
+        autocomplete="nickname">
+      <button class="l-btn" id="l-btn" type="button">Entrar <i class="fas fa-arrow-right"></i></button>
+      <p class="login-hint">Sua sessão está pronta. Não é necessária uma senha.</p>
     </div>
-  </div>
+    <div class="login-brand"><span>VessieOS</span><span>Um espaço para criar e explorar</span></div>
+  </section>
 
   <!-- DESKTOP -->
   <div id="desktop" style="display:none">
@@ -75,7 +58,7 @@
         <i class="fab fa-windows"
           style="background:linear-gradient(135deg,var(--a),var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 6px rgba(196,111,255,.7))"></i>
       </button>
-      <div class="tb-search" id="tb-search"><i class="fas fa-search" style="font-size:.85rem"></i> Pesquisar...</div>
+      <button class="tb-search" id="tb-search" type="button" aria-label="Pesquisar apps e arquivos"><i class="fas fa-search" style="font-size:.85rem"></i><span>Pesquisar...</span></button>
     </div>
     <div class="tb-c" id="tb-wins"></div>
     <div class="tb-r">
@@ -130,51 +113,82 @@
   </div>
 
   <!-- START MENU -->
-  <section id="sm" class="sm-container" role="dialog" aria-modal="false" aria-label="Menu Iniciar">
-
-    <header class="sm-header">
+  <div id="sm" role="dialog" aria-modal="false" aria-label="Menu Iniciar">
+    <div class="sm-top">
       <div class="sm-srch">
-        <i class="fas fa-search sm-srch-icon" aria-hidden="true"></i>
+        <i class="fas fa-search sm-srch-icon" aria-hidden="true" style="color:var(--dim)"></i>
         <label for="sm-q" class="sr-only">Pesquisar</label>
         <input id="sm-q" class="sm-srch-input" type="text" placeholder="Pesquisar apps, configurações..."
           autocomplete="off" aria-label="Pesquisar apps e configurações">
       </div>
-    </header>
+    </div>
 
-    <main class="sm-content">
-      <section class="sm-section" aria-labelledby="sm-ttl-pinned">
-        <h2 id="sm-ttl-pinned" class="sm-ttl">Apps Fixados</h2>
-        <ul class="sm-grid" id="sm-grid" role="listbox" aria-label="Aplicativos Fixados">
-          <!-- Os itens (<li>) serão injetados aqui via JavaScript -->
-        </ul>
-      </section>
+    <div class="sm-body">
+      <div class="sm-view sm-view-pinned" id="sm-view-pinned">
+        <div class="sm-row-head">
+          <span>Fixados</span>
+          <button class="sm-alllink" id="sm-goto-all">Todos os apps <i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div class="sm-pin-grid" id="sm-pin-grid" role="listbox" aria-label="Aplicativos Fixados"></div>
 
-      <section class="sm-section sm-mt" aria-labelledby="sm-ttl-recent">
-        <h2 id="sm-ttl-recent" class="sm-ttl">Recentes</h2>
-        <ul id="sm-recent" class="sm-recent-list" role="listbox" aria-label="Aplicativos Recentes">
-          <li class="sm-recent-empty">Nenhum app recente</li>
-        </ul>
-      </section>
-    </main>
+        <div class="sm-row-head" style="margin-top:16px"><span>Recomendados</span></div>
+        <div id="sm-recent" class="sm-recent-list" role="listbox" aria-label="Aplicativos Recentes">
+          <span class="sm-recent-empty">Nenhum app recente</span>
+        </div>
+      </div>
 
-    <footer class="sm-ft">
-      <div class="sm-usr" role="button" tabindex="0" aria-label="Conta de usuário: Visitante">
+      <div class="sm-view sm-view-all" id="sm-view-all" style="display:none">
+        <div class="sm-row-head sm-row-head-back">
+          <button class="sm-backlink" id="sm-goto-pinned" aria-label="Voltar"><i class="fas fa-chevron-left"></i></button>
+          <span>Todos os apps</span>
+        </div>
+        <div id="sm-grid" role="listbox" aria-label="Todos os aplicativos"></div>
+      </div>
+
+      <div class="sm-view sm-view-search" id="sm-view-search" style="display:none">
+        <div class="sm-row-head"><span id="sm-search-count">Resultados</span></div>
+        <div class="sm-search-grid" id="sm-search-grid"></div>
+      </div>
+    </div>
+
+    <div class="sm-ft">
+      <div class="sm-usr" role="button" tabindex="0" aria-label="Conta de usuário: Visitante" id="sm-usr">
         <div class="sm-uav" aria-hidden="true">💜</div>
         <span id="sm-uname">Visitante</span>
       </div>
-      <button class="sm-pw" id="sm-power" aria-label="Desligar o sistema">
-        <i class="fas fa-power-off" aria-hidden="true"></i>
-        <span>Desligar</span>
-      </button>
-    </footer>
-  </section>
+      <div class="sm-pw-wrap">
+        <button class="sm-pw" id="sm-power" aria-label="Opções de energia" title="Opções de energia"><i class="fas fa-power-off" aria-hidden="true"></i></button>
+        <div class="sm-pw-menu" id="sm-pw-menu">
+          <div class="cti" data-act="sleep"><i class="fas fa-moon"></i> Suspender</div>
+          <div class="cti" data-act="restart"><i class="fas fa-rotate-right"></i> Reiniciar</div>
+          <div class="cti" data-act="shutdown"><i class="fas fa-power-off"></i> Desligar</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- TOAST CONTAINER -->
   <div id="toasts"></div>
 
-  <!-- EASTER EGG -->
-  <div id="eg"> <img src="https://media1.tenor.com/m/wRwerbndgV8AAAAC/micheal.gif" alt="🎉">
+  <!-- AI PROMPT PANEL -->
+  <div id="ai-prompt-panel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;color:#fff;">
+    <div style="position:absolute;top:20%;left:25%;right:25%;background:rgba(15,18,26,.9);border:1px solid var(--border);border-radius:12px;padding:30px;max-width:500px;min-width:300px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h3><i class="fas fa-robot"></i> Prompt IA para Node.js</h3>
+        <button id="ai-prompt-close" style="background:none;border:none;color:var(--dim);font-size:1.2rem;cursor:pointer"><i class="fas fa-times"></i></button>
+      </div>
+      <div style="height:200px;background:rgba(0,0,0,.5);border-radius:8px;padding:15px;overflow:margin;min-height:200px;max-height:400px;display:flex;flex-direction:column;justify-content:flex-start;">
+        <textarea id="ai-prompt-text" style="flex:1;border:none;background:transparent;color:#fff;font-family:Consolas,monospace;padding:10px;resize:vertical;min-height:150px;"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px;padding-top:20px;border-top:1px solid var(--dim);">
+        <button id="ai-prompt-clear" style="flex:1;background:var(--a);color:#fff;border:none;padding:10px;font-weight:600;">Limpar</button>
+        <button id="ai-prompt-send" style="flex:1;background:linear-gradient(135deg,#c46fff,#7a3eb8);color:#fff;border:none;padding:10px;font-weight:600;">Gerar Node.js</button>
+      </div>
+      <div id="ai-prompt-result" style="margin-top:20px;max-height:300px;overflow:auto;display:none;"></div>
+    </div>
   </div>
+
+  <!-- TOAST CONTAINER -->
   <script src="../JS/systems/desktop/main.js"></script>
   <script type="module" src="../JS/kernel/modules/index.js"></script>
 </body>

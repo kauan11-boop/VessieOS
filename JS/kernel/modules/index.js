@@ -24,6 +24,7 @@ import WidgetsBoard from './widgets-board/index.js';
 import PowerManager from './power-management/index.js';
 import ClipboardManager from './clipboard-manager/index.js';
 import ScriptingManager from './scripting/index.js'; // integra o motor VessieScript (.vessie)
+import VessieLangManager from './vessielang/index.js'; // linguagem de programação própria (VessieLang: B1/J3/G5/FULL)
 
 /**
  * Placeholder leve para o slot "Vessie3DProEngine" da pipeline.
@@ -37,6 +38,9 @@ import ScriptingManager from './scripting/index.js'; // integra o motor VessieSc
 class Vessie3DProEngineNoop {
     async init() { return this; }
     async start() { return this; }
+    _handleVisibilityChange() { }
+    _startRenderLoop() { }
+    stopRenderLoop() { }
 }
 
 // ================================================================
@@ -242,6 +246,20 @@ const MODULES = [
         autoStart: true,
         module: ScriptingManager,
         description: 'Integra o motor VessieScript (.vessie) ao kernel — permite apps/mods escritos na linguagem própria do VessieOS.'
+    },
+    {
+        // A cadeia clássica de scripts do motor (B1/J3/G5/FULL + bridge) é
+        // carregada pelo boot loader (JS/systems/desktop/main.js) ANTES da
+        // pipeline de módulos ES rodar — este módulo só localiza
+        // window.VessieLangRuntime já pronto, do mesmo jeito que o
+        // GraphicsHub localiza window.Vessie3DPro.
+        name: 'VessieLangManager',
+        version: '1.0.0',
+        dependencies: [],
+        priority: 22,
+        autoStart: true,
+        module: VessieLangManager,
+        description: 'Integra a linguagem de programação própria do ecossistema (VessieLang) ao kernel — execução de scripts .vl com APIs de IA, rede e coletor de jogos/conteúdo.'
     }
 ];
 

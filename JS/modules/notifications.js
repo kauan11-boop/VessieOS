@@ -1,21 +1,14 @@
 (function () {
+  // NOTA: o toggle do painel (#np) hoje pertence a JS/core/main.js
+  // (`.onclick` em #tb-notif + classe `.open` — ver CSS/components/
+  // notifications.css `#np.open`). Uma versão antiga deste módulo fazia
+  // toggle via `style.display`, o que brigava com o mecanismo por classe:
+  // os dois handlers disparavam no mesmo clique (display:none inline +
+  // classe open = painel invisível). Mantido como no-op documentado para
+  // não quebrar quem ainda importa este arquivo.
   function init() {
     const panel = document.getElementById('np');
-    const button = document.getElementById('tb-notif');
-    if (!panel || !button) return;
-
-    // JS/core/main.js liga #tb-notif com `.onclick = ...` (classList.toggle),
-    // mas só faz isso depois do login — ou seja, no momento em que este
-    // init() roda (boot, antes do login) não dá pra detectar isso ainda.
-    // Por isso o flag é checado dentro do próprio clique, não na hora de
-    // registrar o listener: quando o login acontecer, main.js marca
-    // dataset.vosNotifBound e este handler passa a não fazer nada,
-    // evitando os dois mecanismos brigarem (style.display vs classList).
-    button.addEventListener('click', () => {
-      if (button.dataset.vosNotifBound) return;
-      const isVisible = panel.style.display !== 'none';
-      panel.style.display = isVisible ? 'none' : 'block';
-    });
+    if (panel) panel.classList.remove('open');
   }
 
   window.VessieOS = window.VessieOS || {};

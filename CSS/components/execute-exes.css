@@ -70,6 +70,20 @@
   color: var(--dim);
 }
 
+.path-registry-remove {
+  margin-left: auto;
+  opacity: .55;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: .78rem;
+}
+
+.path-registry-remove:hover {
+  opacity: 1;
+  background: rgba(239, 83, 80, .18);
+  color: #ef5350;
+}
+
 .execute-exes-card {
   padding: 16px;
   border-radius: 16px;

@@ -75,66 +75,120 @@ Para configuração de OAuth (Discord/GitHub), integração com LM Studio e mais
 
 MIT — livre para usar e modificar.
 
-## 🧬 VessieScript — a linguagem própria, agora ligada ao desktop de verdade
+## 🔀 Fusão desta versão (VessieOS-Real + VessieOS-menu-iniciar-v2)
 
-Esta versão conecta a linguagem **VessieScript** (motor em
-`JS/kernel/modules/scripting/lib/vessiescript.js`, spec em
-`assets/vessiescript/SPEC.md` do projeto original) ao restante do sistema,
-que antes existia mas nunca era carregada.
+Este pacote junta os dois arquivos enviados:
 
-**O que foi feito nesta integração:**
+- **Base estrutural:** `VessieOS-menu-iniciar-v2` — tinha o Menu Iniciar
+  reescrito (3 vistas: Fixados/Todos os apps/Busca, tiles maiores, menu de
+  energia), a linguagem **VessieLang** (B1/J3/G5/FULL) já integrada ao
+  kernel, e o coletor de sites já numa v2 bem mais robusta.
+- **Trazido de volta do `VessieOS-Real`:** a integração do **VessieScript**
+  (motor + comandos reais + adaptador de kernel + adaptador de C#), o
+  comando `vessie` no Terminal, a unificação do filesystem
+  (`window.VessieOS.FileSystem`), e 4 módulos extras do kernel
+  (power-management, search-spotlight, widgets-board, clipboard-manager)
+  que a v2 do menu ainda não tinha.
 
-1. **Motor carregado de verdade** — `index.html` agora inclui
-   `vessiescript.js` + três extensões via `<script>` clássico, antes do
-   pipeline de módulos ES, exatamente como `NEW-MODULES.md` já
-   documentava (mas nunca estava implementado):
-   - `vessiescript-extensions.js` — comandos reais: `fs.*`, `proc.*`,
-     `registry.*`, `log.*`, `net.*`, `json.*`, `string.*`, `math.*`,
-     `time.*`, `storage.*`, `events.*`, `map/filter/reduce/sort/assert/
-     clone/typeOf`.
-   - `kernel-adapter.js` — liga `fs/proc/registry/log` ao kernel real
-     (`window.VessieOS.*`) quando presente.
-   - `csharp-adapter.js` — transpila VessieScript para C# compilável de
-     verdade + bridge de runtime com .NET via Blazor WebAssembly.
-2. **Filesystem unificado** — Terminal, Explorador de Arquivos e os
-   comandos `fs.*` do VessieScript agora compartilham o **mesmo** VFS real
-   (antes eram duas simulações paralelas e desconectadas). Um arquivo
-   criado por `fs.write(...)` num script aparece instantaneamente no
-   Explorador de Arquivos e no `ls`/`cat` do Terminal — testado e
-   confirmado com screenshots.
-3. **Comando `vessie` no Terminal real** — `vessie -e "codigo"` roda uma
-   linha de VessieScript; `vessie arquivo.vessie` roda um arquivo do VFS
-   real. Digite `man vessie` no Terminal para ajuda.
-4. **Correções de bugs pré-existentes** encontrados durante os testes:
-   `ScriptingManager.runFromFile` usava uma API de filesystem que não
-   existia; três módulos (`ai-integration`, `web-system-generator`,
-   `system-manager`) chamavam `window.VessieOS.modules.registerModule`
-   (deveria ser `.moduleSystem.registerModule`), causando erros no boot.
+**Resultado:** as duas linguagens do ecossistema coexistem — `vessie` no
+Terminal roda VessieScript, `vl`/o runtime do VessieLang continua
+funcionando como estava. Ambas compartilham o mesmo filesystem real.
 
-**Testado de ponta a ponta** com um servidor local + Chromium headless:
-boot → termos → login → desktop → abrir Terminal → `vessie -e
-"print(1+2, math.sqrt(81))"` → `3 9` → `fs.write(...)` visível no
-Explorador de Arquivos, zero erros de JavaScript novos.
+**Bug de CSS encontrado e corrigido durante a fusão:** `CSS/base/main.css`
+tinha uma regra `#sm { display: none; ... }` antiga (do Menu Iniciar v1),
+carregada *depois* da nova `start-menu.css` — isso fazia o Menu Iniciar v2
+nunca aparecer, mesmo com a classe `.open` sendo aplicada corretamente.
+Removida a regra antiga (mantidas as sub-regras de scrollbar, que ainda
+são usadas). Confirmado com screenshot que o menu abre normalmente agora.
 
-**Limitação conhecida (documentada, não escondida):** `proc.*`/
-`registry.*`/`log.*` do VessieScript falam com o kernel modular real
-(`window.VessieOS.ProcessManager/Registry/kernel`), que é um sistema
-paralelo à lista de processos que o **Gerenciador de Tarefas** mostra na
-tela (esse último usa um estado interno próprio, mais antigo, dentro de
-`JS/core/main.js`). Só o filesystem foi unificado nesta passada — unificar
-também processos/registro é um refactor maior, fora do escopo desta
-integração.
+### Coletor de sites aprimorado (v3)
 
-### Testar o comando `vessie` agora
+`JS/systems/game-hub-collector.js` e `JS/kernel/web-content-fetcher.js`
+ganharam mais uma rodada de melhorias nesta fusão, testadas com um mock de
+`fetch` no Node (assertivas sobre formato de URL, cache, circuito e
+forceRefresh, todas passando):
 
-```bash
-python -m http.server 8000
-# abra http://localhost:8000, faça login (senha: EO123), abra o Terminal
+- **`corsproxy.io` corrigido** — a API deles mudou em 2024 e passou a
+  exigir o parâmetro `?url=`; a chamada antiga (sem esse parâmetro) vinha
+  retornando 400 silenciosamente e caindo pro próximo proxy sem avisar.
+- **`codetabs.com` adicionado** como 4ª camada de fallback de proxy.
+- **`User-Agent` removido** dos headers — é um cabeçalho proibido pela
+  Fetch API (o navegador o descarta sozinho); não fazia nada além de
+  poluir o console. Substituído por `Accept`, que é respeitado de verdade.
+- **Circuit breaker por fonte/motor de busca** — depois de N falhas
+  seguidas (padrão 3), a fonte fica em cooldown por alguns minutos e é
+  **pulada instantaneamente** nas coletas seguintes, em vez de gastar o
+  timeout inteiro de novo numa fonte que acabou de provar estar fora do
+  ar. Consultável via `collector.getSourceStatus()` — dá pra ligar isso a
+  um painel de diagnóstico em Configurações.
+- **`forceRefresh`** — `collectAll({ forceRefresh: true })` e
+  `search(query, { forceRefresh: true })` ignoram o cache pontualmente,
+  sem precisar de `clearCache()` (que apaga tudo).
+
+## 📱 Compatibilidade mobile + Registro JSON + Pasta Windows bloqueada + Easter egg renomeado
+
+Mais uma rodada de melhorias, todas testadas com Playwright (desktop e
+emulação de iPhone 13 real, incluindo diálogos nativos interceptados):
+
+### Compatibilidade com celular/tablet
+- **Bug real corrigido:** o texto "VessieOS" da tela de boot estourava a
+  largura da tela em qualquer celular (`font-size` fixo de 3.6rem +
+  letter-spacing de 16px). Agora usa `clamp()` responsivo.
+- **Arrastar janela por toque** — antes só funcionava com mouse
+  (`mousedown/mousemove/mouseup`); adicionados os equivalentes de toque
+  (`touchstart/touchmove/touchend`).
+- **Janelas em tela cheia no celular** (`CSS/base/mobile.css`, abaixo de
+  700px) — redimensionar/arrastar uma janela de 680px numa tela de 390px
+  não é usável; agora cada janela ocupa a tela inteira, como um app
+  mobile de verdade. Layouts internos com sidebar (Explorador de
+  Arquivos, Execute Exes) empilham verticalmente em vez de espremer.
+- **Menu Iniciar em tela cheia** no celular, pelo mesmo motivo.
+- Dica de atalho de teclado (Alt+setas pra dividir tela) escondida em
+  dispositivos touch — não existe tecla Alt pra apertar num celular.
+- Alvos de toque maiores em menus de contexto e itens de lista
+  (`@media (pointer: coarse)`).
+
+### Sistema de Registro em JSON (localStorage + IndexedDB)
+`window.VessieOS.PathRegistry` — exatamente no formato pedido:
+```json
+{ "path": "C:\\Windows\\explorer.exe", "cmd": "Abrir Explorador de Arquivos" }
 ```
+- **2 entradas padrão** (não removíveis, como atalhos de fábrica do
+  Windows) + entradas de usuário (adicionáveis/removíveis).
+- Tag **`%User%`** resolvida em tempo real pro usuário logado — um item
+  pode apontar pra `C:\Users\%User%\Desktop\...` e continuar válido pra
+  qualquer sessão.
+- **Persistência dupla de verdade**: localStorage (síncrono, fonte da
+  verdade em leitura) + espelho em IndexedDB (assíncrono, mais espaço) —
+  confirmado com teste lendo o banco IndexedDB depois de gravar.
+- Acessível pela GUI (app "Execute Exes" → seção "Registro (JSON)", botão
+  "+ Novo") e pelo Terminal (`reg list` / `reg add "<path>" "<cmd>"` /
+  `reg remove <id>` / `reg run <id>`).
 
-```
-vessie -e "print('Olá do VessieScript!', math.sqrt(81))"
-vessie -e "fs.write('Desktop/teste.txt', 'ola')"
-ls
-cat teste.txt
-```
+### Pasta C:\Windows bloqueada
+- Aparece com **"104 item(s)"**, mas não é uma pasta de verdade com 104
+  entradas fake — é um marcador leve (`{__locked:true, __fileCount:104}`)
+  que `VFS.stat()` sabe reportar corretamente.
+- **Clique esquerdo E direito** nela mostram "🔒 Acesso Negado — peça ao
+  administrador ou digite o código" (também bloqueado no `cd`/`ls` do
+  Terminal).
+- Código de administrador: **"Vessie"**. Acerta uma vez, libera o acesso
+  pelo resto da sessão (reseta ao recarregar a página, como o UAC real) e
+  revela um conteúdo de verdade (System32, WinSxS, System.ini) em vez de
+  continuar com os metadados internos do cadeado aparecendo como arquivo.
+- Bloqueio também vale para escrita programática (`fs.write`/`mkdir`/
+  `delete` de dentro de um script VessieScript ou VessieLang não
+  conseguem "vazar" pra dentro da pasta por baixo dos panos).
+- Endereçamento Windows-style: `C:\Users\%User%\Desktop\...` e
+  `C:\Windows\...` agora resolvem pros lugares certos automaticamente
+  (`VFS.normalize()`), sem quebrar nenhum caminho "solto" que já
+  funcionava antes (`Desktop/arquivo.txt` continua igual).
+
+### Easter egg: "veesie" → "vessie" + visual próprio
+A palavra secreta (digite em qualquer lugar do desktop) tinha um erro de
+digitação ("veesie") e mostrava um GIF de terceiros (Michael Myers, de
+Halloween — problema de direitos autorais). Trocada para **"vessie"**
+(nome correto) e o visual agora é 100% original do VessieOS: glitch de
+texto, estática de TV velha e o coração-mascote piscando em vermelho —
+assustador na estética, mas continua sendo o mesmo coração fofo de
+sempre, sem nenhum jump-scare de verdade.

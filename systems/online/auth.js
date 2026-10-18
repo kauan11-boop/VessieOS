@@ -360,3 +360,11 @@ class AuthenticationSystem {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = AuthenticationSystem;
 }
+
+// Exposto em window para que callback.html e a UI de Configurações do
+// VessieOS (JS/apps/settings/settings.js) consigam instanciar/usar esta classe sem
+// precisar de um bundler. Antes desta correção, este arquivo nem sequer
+// era carregado por index.html — ver JS/systems/desktop/main.js.
+if (typeof window !== 'undefined') {
+  window.AuthenticationSystem = AuthenticationSystem;
+}

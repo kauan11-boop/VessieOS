@@ -180,7 +180,9 @@ export class MotionBlurEngine {
             return;
         }
 
-        const quality = this.performanceManager?.getQuality() || { blurMax: this.config.maxBlur };
+        const quality = (typeof this.performanceManager?.getQuality === 'function')
+            ? this.performanceManager.getQuality()
+            : { blurMax: this.config.maxBlur };
         const maxBlur = Math.min(this.config.maxBlur, quality.blurMax || this.config.maxBlur);
 
         for (const [element, data] of this._activeElements) {
@@ -276,7 +278,9 @@ export class MotionBlurEngine {
      * Ajusta configuração baseada no modo de performance
      */
     _applyPerformanceMode(mode) {
-        const quality = this.performanceManager?.getQuality() || { blurMax: this.config.maxBlur };
+        const quality = (typeof this.performanceManager?.getQuality === 'function')
+            ? this.performanceManager.getQuality()
+            : { blurMax: this.config.maxBlur };
         this.config.maxBlur = Math.min(this.config.maxBlur, quality.blurMax || this.config.maxBlur);
         // Ajusta intensidade
         if (mode === 'power-saving' || mode === 'low') {

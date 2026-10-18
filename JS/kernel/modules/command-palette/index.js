@@ -59,7 +59,8 @@
   }
 
   function getApps() {
-    return window.APPS || [];
+    const all = window.APPS || [];
+    return window.VessieStore ? all.filter(a => window.VessieStore.isInstalled(a.id)) : all;
   }
 
   function render(query) {
@@ -123,8 +124,8 @@
   function open() {
     if (!overlay) buildOverlay();
     // Fecha o Menu Iniciar caso esteja aberto, pra não sobrepor os dois
-    const sm = document.getElementById('sm');
-    if (sm) sm.style.display = 'none';
+    if (typeof window.closeStartMenu === 'function') window.closeStartMenu();
+    else { const sm = document.getElementById('sm'); if (sm) sm.classList.remove('open'); }
 
     overlay.classList.add('open');
     input.value = '';

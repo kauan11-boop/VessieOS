@@ -223,15 +223,43 @@ class OnlineConfig {
 
   /**
    * Get environment variable safely
+   *
+   * BUG CORRIGIDO: este projeto é servido como HTML/JS estático (GitHub
+   * Pages), então `process.env` nunca existe no navegador — a versão
+   * anterior sempre caía no `defaultValue` (string vazia), então o
+   * Discord/GitHub Client ID nunca podia ser configurado sem editar o
+   * código-fonte manualmente. Agora, valores salvos pelo próprio usuário
+   * em Configurações → Online (persistidos em localStorage) têm
+   * prioridade; `process.env` ainda é checado por último, para builds
+   * que passam por um bundler real (Node/Vite/CRA).
    */
   static getEnv(key, defaultValue = null) {
+    try {
+      const stored = localStorage.getItem(`VessieOS_env_${key}`);
+      if (stored) return stored;
+    } catch { /* localStorage indisponível (modo privado restrito etc.) */ }
+
     try {
       if (typeof process !== 'undefined' && process.env) {
         return process.env[`REACT_APP_${key}`] || defaultValue;
       }
-      return defaultValue;
+    } catch { /* ignore */ }
+
+    return defaultValue;
+  }
+
+  /**
+   * Persiste um valor de configuração (ex: Discord Client ID) para que
+   * getEnv() o encontre em carregamentos futuros. Usado pela tela
+   * Configurações → Online do VessieOS.
+   */
+  static setEnv(key, value) {
+    try {
+      if (value) localStorage.setItem(`VessieOS_env_${key}`, value);
+      else localStorage.removeItem(`VessieOS_env_${key}`);
+      return true;
     } catch {
-      return defaultValue;
+      return false;
     }
   }
 

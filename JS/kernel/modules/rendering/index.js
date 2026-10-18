@@ -74,7 +74,9 @@ export class AnimationManager {
     _loop() {
         if (!this._started) return;
         this._rafId = requestAnimationFrame((timestamp) => {
-            const quality = this.performanceManager?.getQuality() || { animationDuration: 1 };
+            const quality = (typeof this.performanceManager?.getQuality === 'function')
+                ? this.performanceManager.getQuality()
+                : { animationDuration: 1 };
             const speed = quality.animationDuration || 1;
             const reduced = this.accessibilityManager?.prefersReducedMotion || false;
 

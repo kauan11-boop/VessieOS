@@ -24,52 +24,38 @@
     <span class="sr-only">Carregando sistema operacional, por favor aguarde.</span>
   </div>
 
-  <!-- TERMS & CONDITIONS -->
-  <section id="terms" class="terms-container is-hidden" role="dialog" aria-modal="false" aria-labelledby="terms-title">
-    <div class="tc terms-card">
-
-      <header class="terms-header">
-        <div class="terms-logo" aria-hidden="true">💜</div>
-        <h2 id="terms-title" class="terms-title">Bem-vinda ao VessieOS!</h2>
-        <p class="terms-subtitle">Por favor, leia os termos antes de continuar</p>
-      </header>
-
-      <main class="terms-content">
-        <ul class="terms-list">
-          <li>Este é um projeto feito com uma coca-cola e uma coxinha.</li>
-          <li>Seus dados <strong>não são salvos</strong> em servidores externos.</li>
-          <li>Detectamos uma atividade suspeita no nosso sistema. Por favor, não fique tentando adivinhar o código, tá
-            bom? Só não mexe, entendeu? Existem coisas nesse sistema que não devem ser descobertas, entende né?</li>
-          <li>Seja bem-vinda, é sério, não tente. Esse foi o meu último aviso. Pode continuar. <br><strong>Ass:
-              Vessie.</strong></li>
-        </ul>
-      </main>
-
-      <footer class="terms-footer">
-        <button class="btn-p" id="btn-accept" type="button" aria-label="Concordar com os termos e entrar no sistema">
-          <span>Concordo e entrar</span>
-          <i class="terms-sparkle" aria-hidden="true">✨</i>
-        </button>
-      </footer>
-
-    </div>
-  </section>
-
-  <!-- LOGIN -->
-  <div id="login" style="display:none">
-    <div class="lc">
-      <div class="l-av">💜</div>
+  <!-- Tela de bloqueio com wallpaper e painel de entrada por interação. -->
+  <section id="login" class="login-screen" style="display:none" aria-label="Boas-vindas do VessieOS">
+    <div class="login-wallpaper" id="login-wallpaper" aria-hidden="true"></div>
+    <div class="lc login-content">
+      <button class="l-av" id="login-avatar" type="button" title="Escolher foto de perfil" aria-label="Escolher foto de perfil">
+        <img id="login-avatar-photo" alt="" hidden>
+        <i class="fas fa-user" id="login-avatar-icon" aria-hidden="true"></i>
+      </button>
+      <input id="login-avatar-file" type="file" accept="image/*" hidden>
+      <p class="login-greeting">Bem-vindo de volta</p>
       <h2>VessieOS</h2>
-      <p>Entre com seu nome de usuário</p>
-      <input class="l-inp" id="l-name" placeholder="Seu nome..." value="Visitante" maxlength="20">
-      <input class="l-inp" id="l-pass" type="password" placeholder="Senha..." autocomplete="off">
-      <div class="l-err-box" id="l-err-box">
-        <div class="l-err-title">Senha incorreta</div>
-        <div class="l-err-sub">você não merece isso</div>
-      </div>
-      <button class="l-btn" id="l-btn">Entrar no Sistema →</button>
+      <label class="login-name-label" for="l-name">Como podemos chamar você?</label>
+      <input class="l-inp" id="l-name" placeholder="Visitante" value="Visitante" maxlength="40"
+        autocomplete="nickname">
+      <button class="l-btn" id="l-btn" type="button">Entrar <i class="fas fa-arrow-right"></i></button>
+      <p class="login-hint">Entre sem senha para continuar</p>
     </div>
-  </div>
+    <div class="login-lock-info" aria-live="polite">
+      <div class="login-lock-time" id="lock-time">--:--</div>
+      <div class="login-lock-date" id="lock-date">Carregando data...</div>
+      <div class="login-lock-card">
+        <strong><i class="fas fa-cloud" aria-hidden="true"></i> Clima</strong>
+        <span id="lock-weather">Clima indisponível no momento.</span>
+      </div>
+      <div class="login-lock-card">
+        <strong><i class="fas fa-circle-info" aria-hidden="true"></i> VessieOS</strong>
+        <span id="lock-news">Seu espaço de trabalho está pronto para iniciar.</span>
+      </div>
+      <button class="login-continue" id="login-continue" type="button">Clique ou pressione uma tecla para entrar</button>
+    </div>
+    <div class="login-brand"><span>VessieOS</span><span>Um espaço para criar e explorar</span></div>
+  </section>
 
   <!-- DESKTOP -->
   <div id="desktop" style="display:none">
@@ -94,14 +80,14 @@
         <i class="fab fa-windows"
           style="background:linear-gradient(135deg,var(--a),var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 6px rgba(196,111,255,.7))"></i>
       </button>
-      <div class="tb-search" id="tb-search"><i class="fas fa-search" style="font-size:.85rem"></i> Pesquisar...</div>
+      <button class="tb-search" id="tb-search" type="button" aria-label="Pesquisar apps e arquivos"><i class="fas fa-search" style="font-size:.85rem"></i><span>Pesquisar...</span></button>
     </div>
     <div class="tb-c" id="tb-wins"></div>
     <div class="tb-r">
       <div class="tb-sys">
-        <i class="fas fa-wifi" title="Wi-Fi"></i>
-        <i class="fas fa-volume-up" title="Volume" id="vol-icon"></i>
-        <i class="fas fa-battery-three-quarters" title="Bateria"></i>
+        <button class="tsy" id="tsy-wifi" title="Wi-Fi"><i class="fas fa-wifi"></i></button>
+        <button class="tsy" id="tsy-vol" title="Volume"><i class="fas fa-volume-up" id="vol-icon"></i></button>
+        <button class="tsy" id="tsy-bat" title="Bateria"><i class="fas fa-battery-three-quarters"></i></button>
       </div>
       <div class="tb-clk">
         <div class="t" id="tb-time"></div>
@@ -148,41 +134,111 @@
     </div>
   </div>
 
+  <!-- TRAY FLYOUTS: um menu próprio por ícone da bandeja -->
+  <div class="fly" id="fly-wifi" role="dialog" aria-label="Wi-Fi">
+    <div class="fly-h"><i class="fas fa-wifi"></i><b>Wi-Fi</b><button class="fly-x" data-fly-close title="Fechar">✕</button></div>
+    <div class="tw-row"><span id="tw-wifi-state">Verificando…</span><span class="tw-dot" id="tw-wifi-dot"></span></div>
+    <div class="tw-sub" id="tw-wifi-type"></div>
+    <div class="tw-row"><button class="tw-btn" id="tw-wifi-open">Abrir Central de Notificações</button></div>
+    <div class="tw-note">O navegador mostra o status real, mas não lista redes — isso só o sistema operacional faz.</div>
+  </div>
+
+  <div class="fly" id="fly-vol" role="dialog" aria-label="Volume">
+    <div class="fly-h"><i class="fas fa-volume-up"></i><b>Volume</b><button class="fly-x" data-fly-close title="Fechar">✕</button></div>
+    <div class="tw-row"><span id="tw-vol-label">70%</span><button class="tw-mute" id="tw-vol-mute" title="Mudo">🔊</button></div>
+    <input class="tw-slider" id="tw-vol-slider" type="range" min="0" max="100" value="70">
+    <div class="tw-note">Controla de verdade músicas e vídeos tocados no VessieOS.</div>
+  </div>
+
+  <div class="fly" id="fly-bat" role="dialog" aria-label="Bateria">
+    <div class="fly-h"><i class="fas fa-battery-three-quarters"></i><b>Bateria</b><button class="fly-x" data-fly-close title="Fechar">✕</button></div>
+    <div class="tw-bat"><div class="tw-bat-pct" id="tw-bat-pct">—</div><div class="tw-bat-bar"><i id="tw-bat-fill"></i></div><div class="tw-bat-sub" id="tw-bat-sub">Lendo sensor…</div></div>
+    <div class="tw-note" id="tw-bat-note">Dados reais do sensor do computador, quando o navegador permite.</div>
+  </div>
+
   <!-- START MENU -->
-  <div id="sm">
-    <div class="sm-srch">
-      <i class="fas fa-search" style="color:var(--dim)"></i>
-      <input id="sm-q" placeholder="Pesquisar apps, configurações...">
+  <div id="sm" role="dialog" aria-label="Menu Iniciar">
+    <div class="sm-top">
+      <div class="sm-srch">
+        <i class="fas fa-search" style="color:var(--dim)"></i>
+        <input id="sm-q" placeholder="Pesquisar apps, configurações..." autocomplete="off">
+      </div>
     </div>
-    <div class="sm-ttl">Apps Fixados</div>
-    <div class="sm-grid" id="sm-grid"></div>
-    <div class="sm-ttl" style="margin-top:14px">Recentes</div>
-    <div id="sm-recent"
-      style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-size:.82rem;color:var(--dim)">
-      <span>Nenhum app recente</span>
+
+    <div class="sm-body">
+      <div class="sm-view sm-view-pinned" id="sm-view-pinned">
+        <div class="sm-row-head">
+          <span>Fixados</span>
+          <button class="sm-alllink" id="sm-goto-all">Todos os apps <i class="fas fa-chevron-right"></i></button>
+        </div>
+        <div class="sm-pin-grid" id="sm-pin-grid"></div>
+
+        <div class="sm-row-head" style="margin-top:16px"><span>Recomendados</span></div>
+        <div class="sm-recent-list" id="sm-recent"><span class="sm-recent-empty">Nenhum app recente</span></div>
+      </div>
+
+      <div class="sm-view sm-view-all" id="sm-view-all" style="display:none">
+        <div class="sm-row-head sm-row-head-back">
+          <button class="sm-backlink" id="sm-goto-pinned"><i class="fas fa-chevron-left"></i></button>
+          <span>Todos os apps</span>
+        </div>
+        <div id="sm-grid"></div>
+      </div>
+
+      <div class="sm-view sm-view-search" id="sm-view-search" style="display:none">
+        <div class="sm-row-head"><span id="sm-search-count">Resultados</span></div>
+        <div class="sm-search-grid" id="sm-search-grid"></div>
+      </div>
     </div>
+
     <div class="sm-ft">
-      <div class="sm-usr">
+      <div class="sm-usr" id="sm-usr">
         <div class="sm-uav">💜</div>
         <span id="sm-uname">Visitante</span>
       </div>
-      <button class="sm-pw" id="sm-power"><i class="fas fa-power-off"></i> Desligar</button>
+      <div class="sm-pw-wrap">
+        <button class="sm-pw" id="sm-power" title="Opções de energia"><i class="fas fa-power-off"></i></button>
+        <div class="sm-pw-menu" id="sm-pw-menu">
+          <div class="cti" data-act="sleep"><i class="fas fa-moon"></i> Suspender</div>
+          <div class="cti" data-act="restart"><i class="fas fa-rotate-right"></i> Reiniciar</div>
+          <div class="cti" data-act="shutdown"><i class="fas fa-power-off"></i> Desligar</div>
+        </div>
+      </div>
     </div>
+  </div>
+
+  <!-- GLOBAL SEARCH (lupa da taskbar: apps + web + configurações) -->
+  <div id="gsearch" role="dialog" aria-label="Pesquisa">
+    <div class="gs-bar">
+      <i class="fas fa-search"></i>
+      <input id="gsearch-input" placeholder="Pesquisar apps, sites e configurações..." autocomplete="off">
+      <button id="gsearch-close" title="Fechar pesquisa"><i class="fas fa-times"></i></button>
+    </div>
+    <div id="gsearch-results"></div>
   </div>
 
   <!-- TOAST CONTAINER -->
   <aside id="toasts" class="toast-container" role="region" aria-label="Notificações do sistema" aria-live="polite"
     aria-atomic="true"></aside>
 
-  <!-- EASTER EGG -->
-  <div id="eg"> <img src="https://media1.tenor.com/m/wRwerbndgV8AAAAC/micheal.gif" alt="🎉">
+  <!-- EASTER EGG: digite "vessie" em qualquer lugar do desktop para ativar.
+       Tema "assombrado" original do VessieOS — visual próprio (glitch +
+       estática), nada de imagem de terceiros. Assustador na estética, mas
+       inofensivo: dura 4s e não trava nem exige nenhuma ação do usuário. -->
+  <div id="eg">
+    <div class="eg-static"></div>
+    <div class="eg-heart">💜</div>
+    <div class="horror-title">V E S S I E</div>
+    <div class="horror-sub">...eu sabia que você me chamaria 👁️</div>
   </div>
   <script src="./JS/systems/desktop/main.js"></script>
   <!-- Motor VessieScript (linguagem própria do ecossistema, ver assets/vessiescript/SPEC.md)
        + extensões (comandos reais), adaptador de kernel real e adaptador de C#.
        Precisam ser <script> clássicos carregados ANTES do pipeline de módulos ES
        abaixo, para que window.VessieScript já exista quando o ScriptingManager
-       inicializar (ver NEW-MODULES.md § ScriptingManager). -->
+       inicializar (ver NEW-MODULES.md § ScriptingManager). A cadeia clássica do
+       VessieLang (B1/J3/G5/FULL) é carregada à parte, dinamicamente, pelo
+       array de scripts de JS/systems/desktop/main.js. -->
   <script src="./JS/kernel/modules/scripting/lib/vessiescript.js"></script>
   <script src="./JS/kernel/modules/scripting/lib/kernel-adapter.js"></script>
   <script src="./JS/kernel/modules/scripting/lib/vessiescript-extensions.js"></script>

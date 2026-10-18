@@ -234,6 +234,12 @@ class DiscordIntegration {
 
   /**
    * Setup Discord OAuth2 flow
+   * Bug corrigido: a versão anterior montava a URL como
+   * `${apiBaseUrl}/../oauth2/authorize`, que ao ser normalizada pelo
+   * navegador vira `https://discord.com/api/oauth2/authorize` — path
+   * errado (o authorize do Discord fica em /oauth2/authorize, sem /api).
+   * Isso fazia o botão "Entrar com Discord" cair numa página 404/erro
+   * do Discord em vez de abrir a tela de autorização.
    */
   getOAuthUrl(redirectUri, scopes = ['identify', 'guilds']) {
     const params = new URLSearchParams({
@@ -243,29 +249,55 @@ class DiscordIntegration {
       scope: scopes.join(' ')
     });
 
-    return `${this.apiBaseUrl}/../oauth2/authorize?${params.toString()}`;
+    return `https://discord.com/oauth2/authorize?${params.toString()}`;
   }
 
   /**
    * Exchange code for token
+   *
+   * IMPORTANTE (segurança): o endpoint /oauth2/token do Discord exige o
+   * corpo em `application/x-www-form-urlencoded`, não JSON — a versão
+   * anterior enviava JSON via fetchAPI() e o Discord respondia sempre
+   * com 400 "Invalid Form Body", então o login por OAuth2 nunca
+   * completava. Corrigido aqui com uma chamada fetch própria.
+   *
+   * MAIS IMPORTANTE ainda: `clientSecret` NUNCA pode viver em código que
+   * roda no navegador do usuário (HTML/JS servidos estaticamente, como
+   * neste projeto). Qualquer pessoa que abrir o DevTools vê o secret e
+   * pode se passar pela sua aplicação Discord. Esta função continua
+   * aceitando `clientSecret` como parâmetro para quem tiver um backend
+   * próprio fazendo essa troca (ex: uma função serverless que recebe o
+   * `code` do cliente e devolve só o token), mas o app não deve chamar
+   * `exchangeCode` diretamente de um `<script>` estático com o secret
+   * embutido. Para uso 100% estático (GitHub Pages), prefira o fluxo
+   * implicit já usado em systems/online/auth.js (getDiscordLoginUrl),
+   * que não precisa de client secret.
    */
   async exchangeCode(code, redirectUri, clientSecret) {
     try {
-      const response = await this.fetchAPI('/oauth2/token', {
-        method: 'POST',
-        noAuth: true,
-        body: {
-          client_id: this.clientId,
-          client_secret: clientSecret,
-          code,
-          grant_type: 'authorization_code',
-          redirect_uri: redirectUri
-        }
+      const body = new URLSearchParams({
+        client_id: this.clientId,
+        client_secret: clientSecret,
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri
       });
 
+      const res = await fetch(`${this.apiBaseUrl}/oauth2/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString()
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText);
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+
+      const response = await res.json();
       this.accessToken = response.access_token;
       await this.init(response.access_token);
-      
+
       return response;
     } catch (error) {
       this.log(`Error exchanging code: ${error.message}`);
